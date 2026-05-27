@@ -132,3 +132,51 @@ html, body, #root {
   color: var(--red);
   border: 1px solid rgba(255, 77, 106, 0.25);
 }
+
+/* Premium Route Loading Progress Bar */
+#route-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent-primary), #4d9fff);
+  box-shadow: 0 0 8px var(--accent-primary);
+  z-index: 9999;
+  transition: width 0.4s cubic-bezier(0.08, 0.82, 0.17, 1);
+  pointer-events: none;
+}
+
+/* Smooth Dynamic Page Fade In Animation */
+.page-fade-in {
+  animation: pageTransit 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pageTransit {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Active Nav Glow */
+.nav-glow {
+  box-shadow: 0 0 16px var(--accent-glow);
+  border-color: rgba(0, 212, 170, 0.25) !important;
+}
+
+/* Compact Mode Spacing Overwrite */
+.compact-layout main {
+  padding: 1rem 1.5rem !important;
+}
+.compact-layout .card {
+  padding: 1rem !important;
+  gap: 0.5rem !important;
+}
+.compact-layout section {
+  margin-bottom: 1.5rem !important;
+}
+

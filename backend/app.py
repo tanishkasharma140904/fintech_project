@@ -528,7 +528,7 @@ def _empty_analytics():
 def health_check():
     return jsonify({
         "status": "ok",
-        "message": "NovaTrade Flask backend is running 🚀",
+        "message": "Artho Flask backend is running 🚀",
     })
 
 
@@ -610,7 +610,7 @@ def method_not_allowed(error):
 # ── Entry Point ──────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("🚀 Starting NovaTrade Flask backend...")
+    print("🚀 Starting Artho Flask backend...")
     print("📁 Upload folder:", UPLOAD_FOLDER)
     print("🌐 Running at: http://localhost:5001\n")
 

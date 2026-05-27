@@ -97,25 +97,56 @@ export default function DebtManagement() {
   const summary = analytics?.summary;
 
   /* ── Profile ── */
-  const [profile, setProfile] = useState({ monthlyIncome: 0, monthlyExpenses: 0, currentSavings: 0 });
+  const [profile, setProfile] = useState(() => {
+    try {
+      const saved = localStorage.getItem("fintech_debt_profile");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return { monthlyIncome: 0, monthlyExpenses: 0, currentSavings: 0 };
+  });
   const [profileEditing, setProfileEditing] = useState({});
 
   useEffect(() => {
     if (summary) {
       const months = Math.max(1, analytics?.by_month?.length || 1);
-      setProfile(prev => ({
-        monthlyIncome: summary.total_income > 0 ? Math.round(summary.total_income / months) : prev.monthlyIncome,
-        monthlyExpenses: summary.avg_monthly_spending || prev.monthlyExpenses,
-        currentSavings: Math.max(0, summary.net_savings) || prev.currentSavings,
-      }));
+      // Auto-fill from analytics ONLY if we don't have manually saved profile inputs in localStorage
+      const hasSaved = localStorage.getItem("fintech_debt_profile");
+      if (!hasSaved) {
+        setProfile(prev => ({
+          monthlyIncome: summary.total_income > 0 ? Math.round(summary.total_income / months) : prev.monthlyIncome,
+          monthlyExpenses: summary.avg_monthly_spending || prev.monthlyExpenses,
+          currentSavings: Math.max(0, summary.net_savings) || prev.currentSavings,
+        }));
+      }
     }
   }, [summary, analytics?.by_month?.length]);
 
   /* ── Debts ── */
-  const [debts, setDebts] = useState([makeDebt("home")]);
-  const [activeStrategy, setActiveStrategy] = useState("avalanche");
-  const [extraPayment, setExtraPayment] = useState(0);
-  const [showResults, setShowResults] = useState(false);
+  const [debts, setDebts] = useState(() => {
+    try {
+      const saved = localStorage.getItem("fintech_debt_list");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.length > 0) {
+          // Adjust nextDebtId to be higher than any loaded debt ID
+          const maxId = Math.max(...parsed.map(d => d.id));
+          nextDebtId = maxId + 1;
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return [makeDebt("home")];
+  });
+  const [activeStrategy, setActiveStrategy] = useState(() => {
+    return localStorage.getItem("fintech_debt_strategy") || "avalanche";
+  });
+  const [extraPayment, setExtraPayment] = useState(() => {
+    const saved = localStorage.getItem("fintech_debt_extra_payment");
+    return saved ? parseInt(saved) || 0 : 0;
+  });
+  const [showResults, setShowResults] = useState(() => {
+    return localStorage.getItem("fintech_debt_show_results") === "true";
+  });
 
   const addDebt = () => setDebts(prev => [...prev, makeDebt("personal")]);
   const removeDebt = (id) => { setDebts(prev => prev.filter(d => d.id !== id)); setShowResults(false); };
@@ -141,6 +172,33 @@ export default function DebtManagement() {
   const updateProfile = (k, v) => { setProfile(p => ({ ...p, [k]: v })); if (showResults) setShowResults(false); };
 
   const result = useDebtAnalyzer(debts, profile, extraPayment);
+
+  // Sync to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("fintech_debt_list", JSON.stringify(debts));
+      localStorage.setItem("fintech_debt_profile", JSON.stringify(profile));
+      localStorage.setItem("fintech_debt_strategy", activeStrategy);
+      localStorage.setItem("fintech_debt_extra_payment", extraPayment.toString());
+      localStorage.setItem("fintech_debt_show_results", showResults ? "true" : "false");
+
+      if (showResults && result.ready) {
+        const activeDebtsData = {
+          totalDebt: result.metrics.totalDebt,
+          totalEMI: result.metrics.totalEMI,
+          dti: result.metrics.dti,
+          stressScore: result.metrics.stressScore,
+          stabilityScore: result.metrics.stabilityScore,
+          debtFreeMonth: result.strategies[activeStrategy]?.debtFreeMonth || 0,
+          debts: debts,
+          ready: true,
+        };
+        localStorage.setItem("fintech_active_debts", JSON.stringify(activeDebtsData));
+      }
+    } catch (e) {
+      console.error("Error saving debt state to localStorage:", e);
+    }
+  }, [debts, profile, activeStrategy, extraPayment, showResults, result]);
   const healthScore = analytics?.dashboard_cards?.financial_health?.value;
   const activePlan = result.ready ? result.strategies[activeStrategy] : null;
 

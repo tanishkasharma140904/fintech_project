@@ -1,4 +1,5 @@
 import { useAnalytics } from "../context/AnalyticsContext";
+import { useUser } from "../context/UserContext";
 import CSVUpload from "./expenses/CSVUpload";
 import ExpensePieChart from "./expenses/ExpensePieChart";
 import ExpenseBarChart from "./expenses/ExpenseBarChart";
@@ -246,8 +247,12 @@ function CardSkeleton() {
 
 export default function Dashboard() {
   const { analytics, status } = useAnalytics();
+  const { user } = useUser();
   const cards = buildDynamicCards(analytics?.dashboard_cards);
   const isLoading = status === "loading";
+
+  // Extract first name for the personal greeting
+  const firstName = user?.fullName ? user.fullName.split(" ")[0] : "Aryan";
 
   return (
     <main
@@ -257,7 +262,7 @@ export default function Dashboard() {
       {/* Page Header */}
       <div className="mb-8">
         <h2 className="text-xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>
-          Good morning, Aryan 👋
+          Good morning, {firstName} 👋
         </h2>
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
           Here's what's happening in your portfolio today.

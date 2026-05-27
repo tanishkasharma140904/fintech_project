@@ -65,32 +65,51 @@ export default function InvestmentEstimator() {
   const { analytics } = useAnalytics();
   const summary = analytics?.summary;
 
-  const [profile, setProfile] = useState({
-    monthlyIncome: 0, monthlyExpenses: 0, currentSavings: 0, emergencyReserve: 0,
+  const [profile, setProfile] = useState(() => {
+    try {
+      const saved = localStorage.getItem("fintech_estimator_profile");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return { monthlyIncome: 0, monthlyExpenses: 0, currentSavings: 0, emergencyReserve: 0 };
   });
   const [profileEditing, setProfileEditing] = useState({});
 
   useEffect(() => {
     if (summary) {
       const months = Math.max(1, analytics?.by_month?.length || 1);
-      setProfile(prev => ({
-        monthlyIncome: summary.total_income > 0 ? Math.round(summary.total_income / months) : prev.monthlyIncome,
-        monthlyExpenses: summary.avg_monthly_spending || prev.monthlyExpenses,
-        currentSavings: Math.max(0, summary.net_savings) || prev.currentSavings,
-        emergencyReserve: Math.round((summary.avg_monthly_spending || 0) * 3),
-      }));
+      // Auto-fill from analytics ONLY if we don't have manually saved profile inputs in localStorage
+      const hasSaved = localStorage.getItem("fintech_estimator_profile");
+      if (!hasSaved) {
+        setProfile(prev => ({
+          monthlyIncome: summary.total_income > 0 ? Math.round(summary.total_income / months) : prev.monthlyIncome,
+          monthlyExpenses: summary.avg_monthly_spending || prev.monthlyExpenses,
+          currentSavings: Math.max(0, summary.net_savings) || prev.currentSavings,
+          emergencyReserve: Math.round((summary.avg_monthly_spending || 0) * 3),
+        }));
+      }
     }
   }, [summary, analytics?.by_month?.length]);
 
-  const [selectedType, setSelectedType] = useState("house");
-  const [form, setForm] = useState({
-    totalCost: INVESTMENT_PRESETS.house.defaultCost,
-    downPayment: Math.round(INVESTMENT_PRESETS.house.defaultCost * INVESTMENT_PRESETS.house.defaultDownPct / 100),
-    interestRate: INVESTMENT_PRESETS.house.defaultRate,
-    loanYears: INVESTMENT_PRESETS.house.defaultYears,
-    existingEMIs: 0,
+  const [selectedType, setSelectedType] = useState(() => {
+    return localStorage.getItem("fintech_estimator_selected_type") || "house";
   });
-  const [showResults, setShowResults] = useState(false);
+
+  const [form, setForm] = useState(() => {
+    try {
+      const saved = localStorage.getItem("fintech_estimator_form");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {
+      totalCost: INVESTMENT_PRESETS.house.defaultCost,
+      downPayment: Math.round(INVESTMENT_PRESETS.house.defaultCost * INVESTMENT_PRESETS.house.defaultDownPct / 100),
+      interestRate: INVESTMENT_PRESETS.house.defaultRate,
+      loanYears: INVESTMENT_PRESETS.house.defaultYears,
+      existingEMIs: 0,
+    };
+  });
+  const [showResults, setShowResults] = useState(() => {
+    return localStorage.getItem("fintech_estimator_show_results") === "true";
+  });
 
   const handleTypeChange = useCallback((typeId) => {
     setSelectedType(typeId);
@@ -109,6 +128,40 @@ export default function InvestmentEstimator() {
   const updateProfile = (k, v) => { setProfile(p => ({ ...p, [k]: v })); if (showResults) setShowResults(false); };
 
   const result = useInvestmentCalculator(form, profile);
+
+  // Sync to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("fintech_estimator_form", JSON.stringify(form));
+      localStorage.setItem("fintech_estimator_profile", JSON.stringify(profile));
+      localStorage.setItem("fintech_estimator_selected_type", selectedType);
+      localStorage.setItem("fintech_estimator_show_results", showResults ? "true" : "false");
+
+      if (showResults && result.ready) {
+        const activeInvestmentData = {
+          type: selectedType,
+          emoji: INVESTMENT_PRESETS[selectedType]?.emoji || "⚙️",
+          label: INVESTMENT_PRESETS[selectedType]?.label || "Custom Investment",
+          cost: form.totalCost,
+          downPayment: form.downPayment,
+          loanYears: form.loanYears,
+          interestRate: form.interestRate,
+          emi: result.metrics.emi,
+          feasibilityScore: result.metrics.feasibilityScore,
+          feasibilityStatus: result.metrics.feasibilityStatus,
+          feasibilityColor: result.metrics.feasibilityColor,
+          affordabilityRatio: result.metrics.affordabilityRatio,
+          dti: result.metrics.dti,
+          totalInterest: result.metrics.totalInterest,
+          recommendations: result.recommendations,
+          ready: true,
+        };
+        localStorage.setItem("fintech_active_investment", JSON.stringify(activeInvestmentData));
+      }
+    } catch (e) {
+      console.error("Error persisting Investment Estimator state:", e);
+    }
+  }, [form, profile, selectedType, showResults, result]);
   const healthScore = analytics?.dashboard_cards?.financial_health?.value;
 
   return (

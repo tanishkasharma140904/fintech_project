@@ -1,14 +1,28 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAnalytics } from "../../context/AnalyticsContext";
+import { useNotifications } from "../../context/NotificationContext";
 
 export default function CSVUpload() {
   const { status, message, transactions, filename, fileCount, uploadFile, mergeFile, reset } = useAnalytics();
+  const { addNotification } = useNotifications();
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
   const isUploaded = status === "success";
+
+  // Dispatch Transaction Import alerts reactively when loading settles successfully
+  useEffect(() => {
+    if (isUploaded && transactions.length > 0) {
+      addNotification({
+        title: "Transactions Imported",
+        description: `Imported and compiled ${transactions.length} transaction records from ${filename || "bank CSV"}.`,
+        category: "Transactions",
+        priority: "high",
+      });
+    }
+  }, [isUploaded, transactions.length, filename, addNotification]);
 
   function handleFileChange(event) {
     const file = event.target.files[0];
@@ -42,6 +56,12 @@ export default function CSVUpload() {
     setSelectedFile(null);
     setShowAll(false);
     reset();
+    addNotification({
+      title: "Ledger Data Wiped",
+      description: "Purged all loaded transaction logs. Artho dashboard reset to baseline.",
+      category: "System",
+      priority: "medium",
+    });
   }
 
   function formatDate(raw) {

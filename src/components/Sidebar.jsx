@@ -1,10 +1,11 @@
 import { NavLink } from "react-router-dom";
+import { useUser } from "../context/UserContext";
 
 const NAV_ITEMS = [
   {
     id: "dashboard",
     label: "Dashboard",
-    to: "/",
+    to: "/dashboard",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
@@ -47,7 +48,7 @@ const NAV_ITEMS = [
   {
     id: "estimator",
     label: "Investment Estimator",
-    to: "/estimator",
+    to: "/investment-estimator",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="4" y="2" width="16" height="20" rx="2" />
@@ -61,7 +62,7 @@ const NAV_ITEMS = [
   {
     id: "debt",
     label: "Debt Management",
-    to: "/debt",
+    to: "/debt-management",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -82,6 +83,18 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar() {
+  const { user } = useUser();
+
+  // Extract initials dynamically
+  const initials = user?.fullName
+    ? user.fullName
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "AK";
+
   return (
     <aside
       className="h-screen w-60 flex flex-col"
@@ -105,7 +118,7 @@ export default function Sidebar() {
         </div>
         <div>
           <p className="text-sm font-bold tracking-wide" style={{ color: "var(--text-primary)" }}>
-            NovaTrade
+            Artho
           </p>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
             Pro Dashboard
@@ -129,7 +142,6 @@ export default function Sidebar() {
           <NavLink
             key={item.id}
             to={item.to}
-            end={item.to === "/"}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-all duration-150 group no-underline"
             style={({ isActive }) => ({
               background: isActive ? "var(--accent-glow)" : "transparent",
@@ -158,36 +170,40 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* User Profile */}
-      <div
-        className="p-4 mx-3 mb-4 rounded-xl flex items-center gap-3"
-        style={{
+      {/* User Profile Footer */}
+      <NavLink
+        to="/profile"
+        className="mx-3 mb-4 rounded-xl flex items-center gap-3 p-4 transition-all duration-200 outline-none hover:border-cyan-500 hover:border-opacity-35"
+        style={({ isActive }) => ({
           background: "var(--bg-elevated)",
-          border: "1px solid var(--bg-border)",
-        }}
+          border: isActive ? "1px solid var(--accent-primary)" : "1px solid var(--bg-border)",
+          boxShadow: isActive ? "0 0 12px var(--accent-glow)" : "none",
+          textDecoration: "none",
+          cursor: "pointer"
+        })}
       >
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
           style={{
-            background: "linear-gradient(135deg, #00d4aa, #4d9fff)",
+            background: "linear-gradient(135deg, var(--accent-primary), #4d9fff)",
             color: "#fff",
           }}
         >
-          AK
+          {initials}
         </div>
         <div className="min-w-0">
           <p className="text-xs font-semibold truncate" style={{ color: "var(--text-primary)" }}>
-            Aryan Kumar
+            {user?.fullName || "Aryan Kumar"}
           </p>
           <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
-            Pro Plan
+            {user?.completed ? (user.riskAppetite ? `${user.riskAppetite.charAt(0).toUpperCase() + user.riskAppetite.slice(1)} Risk` : "Pro Plan") : "Onboarding Stage"}
           </p>
         </div>
         <span
           className="ml-auto w-2 h-2 rounded-full flex-shrink-0"
-          style={{ background: "var(--green)", boxShadow: "0 0 6px var(--green)" }}
+          style={{ background: "#10d078", boxShadow: "0 0 6px #10d078" }}
         />
-      </div>
+      </NavLink>
     </aside>
   );
 }
