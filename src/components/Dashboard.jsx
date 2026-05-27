@@ -1,29 +1,18 @@
-// ============================================================
-// FILE: src/components/Dashboard.jsx  (UPDATED VERSION)
-// PURPOSE: Main content page — now includes the full
-//          Expense Analytics section below the existing cards.
-//
-// WHAT CHANGED FROM v1:
-//   + 4 new imports (CSVUpload, charts, AIInsights)
-//   + A new <section> block for "Expense Analytics"
-//   + The placeholder "coming next" block is now replaced
-//
-// HOW IMPORTS WORK HERE:
-//   "./expenses/CSVUpload" means:
-//     start in the same folder (components/)
-//     go into the expenses/ subfolder
-//     find CSVUpload.jsx
-// ============================================================
+import { useAnalytics } from "../context/AnalyticsContext";
+import CSVUpload from "./expenses/CSVUpload";
+import ExpensePieChart from "./expenses/ExpensePieChart";
+import ExpenseBarChart from "./expenses/ExpenseBarChart";
+import AIInsights from "./expenses/AIInsights";
 
-// The 3 original analytics cards data (unchanged from v1)
-const ANALYTICS_CARDS = [
+// Default cards shown before data is uploaded
+const DEFAULT_CARDS = [
   {
-    id: "portfolio",
-    title: "Total Portfolio",
-    value: "₹14,82,340",
-    change: "+8.24%",
+    id: "balance",
+    title: "Total Balance",
+    value: "—",
+    change: "—",
     changeType: "up",
-    period: "vs last month",
+    period: "upload CSV to see data",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="7" width="20" height="14" rx="2" />
@@ -31,15 +20,15 @@ const ANALYTICS_CARDS = [
       </svg>
     ),
     accentColor: "#00d4aa",
-    sparkline: [40, 55, 48, 65, 58, 72, 80, 75, 88, 95],
+    sparkline: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   },
   {
-    id: "profit",
-    title: "Monthly P&L",
-    value: "+₹1,24,780",
-    change: "+12.6%",
+    id: "savings",
+    title: "Monthly Savings",
+    value: "—",
+    change: "—",
     changeType: "up",
-    period: "vs last month",
+    period: "upload CSV to see data",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
@@ -47,15 +36,15 @@ const ANALYTICS_CARDS = [
       </svg>
     ),
     accentColor: "#10d078",
-    sparkline: [30, 38, 34, 50, 46, 60, 55, 70, 68, 82],
+    sparkline: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   },
   {
     id: "risk",
-    title: "Risk Score",
-    value: "34 / 100",
-    change: "-5 pts",
+    title: "Spending Risk",
+    value: "—",
+    change: "—",
     changeType: "up",
-    period: "vs last week",
+    period: "upload CSV to see data",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -63,12 +52,134 @@ const ANALYTICS_CARDS = [
         <line x1="12" y1="17" x2="12.01" y2="17" />
       </svg>
     ),
-    accentColor: "#4d9fff",
-    sparkline: [90, 85, 80, 78, 72, 68, 65, 58, 50, 44],
+    accentColor: "#f5a623",
+    sparkline: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  },
+  {
+    id: "health",
+    title: "Financial Health",
+    value: "—",
+    change: "—",
+    changeType: "up",
+    period: "upload CSV to see data",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+      </svg>
+    ),
+    accentColor: "#c084fc",
+    sparkline: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   },
 ];
 
+const ICONS = {
+  balance: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" />
+      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+    </svg>
+  ),
+  savings: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+      <polyline points="17 6 23 6 23 12" />
+    </svg>
+  ),
+  risk: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  ),
+  health: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+    </svg>
+  ),
+};
+
+const ACCENT_COLORS = {
+  balance: "#00d4aa",
+  savings: "#10d078",
+  risk: "#f5a623",
+  health: "#c084fc",
+};
+
+function formatINR(num) {
+  if (num == null || isNaN(num)) return "—";
+  const abs = Math.abs(num);
+  const sign = num < 0 ? "-" : "";
+  if (abs >= 100000) {
+    return `${sign}₹${(abs / 100000).toFixed(2)}L`;
+  }
+  return `${sign}₹${abs.toLocaleString("en-IN")}`;
+}
+
+function buildDynamicCards(dashCards) {
+  if (!dashCards) return DEFAULT_CARDS;
+
+  const pChg = dashCards.portfolio?.change_pct ?? 0;
+  const sChg = dashCards.monthly_pnl?.change_pct ?? 0;
+  const riskVal = dashCards.risk_score?.value ?? 50;
+  const healthVal = dashCards.financial_health?.value ?? 50;
+
+  return [
+    {
+      id: "balance",
+      title: "Total Balance",
+      value: formatINR(dashCards.portfolio?.value),
+      change: `${pChg > 0 ? "+" : ""}${pChg.toFixed(1)}%`,
+      changeType: pChg >= 0 ? "up" : "down",
+      period: "net balance",
+      icon: ICONS.balance,
+      accentColor: ACCENT_COLORS.balance,
+      sparkline: [40, 55, 48, 65, 58, 72, 80, 75, 88, 95],
+    },
+    {
+      id: "savings",
+      title: "Monthly Savings",
+      value: formatINR(dashCards.monthly_pnl?.value),
+      change: `${sChg > 0 ? "+" : ""}${sChg.toFixed(1)}%`,
+      changeType: sChg >= 0 ? "up" : "down",
+      period: "vs last month",
+      icon: ICONS.savings,
+      accentColor: ACCENT_COLORS.savings,
+      sparkline: [30, 38, 34, 50, 46, 60, 55, 70, 68, 82],
+    },
+    {
+      id: "risk",
+      title: "Spending Risk",
+      value: `${riskVal} / 100`,
+      change: riskVal <= 35 ? "Low risk" : riskVal <= 60 ? "Moderate" : "High risk",
+      changeType: riskVal <= 50 ? "up" : "down",
+      period: "spending volatility",
+      icon: ICONS.risk,
+      accentColor: ACCENT_COLORS.risk,
+      sparkline: [90, 85, 80, 78, 72, 68, 65, 58, 50, riskVal],
+    },
+    {
+      id: "health",
+      title: "Financial Health",
+      value: `${healthVal} / 100`,
+      change: healthVal >= 70 ? "Excellent" : healthVal >= 45 ? "Good" : "Needs work",
+      changeType: healthVal >= 50 ? "up" : "down",
+      period: "composite score",
+      icon: ICONS.health,
+      accentColor: ACCENT_COLORS.health,
+      sparkline: [20, 30, 35, 42, 50, 55, 60, 65, 72, healthVal],
+    },
+  ];
+}
+
 function Sparkline({ points, color }) {
+  if (!points || points.length < 2 || points.every(p => p === 0)) {
+    return (
+      <svg viewBox="0 0 100 40" width="80" height="32">
+        <line x1="0" y1="20" x2="100" y2="20" stroke={color} strokeWidth="1" strokeDasharray="4 4" opacity="0.3" />
+      </svg>
+    );
+  }
   const max = Math.max(...points);
   const min = Math.min(...points);
   const range = max - min || 1;
@@ -117,23 +228,33 @@ function AnalyticsCard({ card }) {
   );
 }
 
-// ── NEW IMPORTS: the 4 expense analytics components ──────────
-// Each import path starts with "./expenses/" because these files
-// live in src/components/expenses/ and we're in src/components/
-import CSVUpload       from "./expenses/CSVUpload";
-import ExpensePieChart from "./expenses/ExpensePieChart";
-import ExpenseBarChart from "./expenses/ExpenseBarChart";
-import AIInsights      from "./expenses/AIInsights";
+function CardSkeleton() {
+  return (
+    <div className="card card-gradient flex flex-col gap-4" style={{ position: "relative", overflow: "hidden" }}>
+      <div className="flex items-start justify-between">
+        <div className="h-3 w-24 rounded" style={{ background: "var(--bg-elevated)", animation: "pulse 2s ease-in-out infinite" }} />
+        <div className="w-9 h-9 rounded-xl" style={{ background: "var(--bg-elevated)", animation: "pulse 2s ease-in-out infinite" }} />
+      </div>
+      <div className="h-7 w-32 rounded" style={{ background: "var(--bg-elevated)", animation: "pulse 2s ease-in-out infinite" }} />
+      <div className="flex items-end justify-between mt-auto">
+        <div className="h-5 w-20 rounded-full" style={{ background: "var(--bg-elevated)", animation: "pulse 2s ease-in-out infinite" }} />
+        <div className="h-8 w-20 rounded" style={{ background: "var(--bg-elevated)", animation: "pulse 2s ease-in-out infinite" }} />
+      </div>
+    </div>
+  );
+}
 
-// ── Main Dashboard Component ─────────────────────────────────
 export default function Dashboard() {
+  const { analytics, status } = useAnalytics();
+  const cards = buildDynamicCards(analytics?.dashboard_cards);
+  const isLoading = status === "loading";
+
   return (
     <main
       className="flex-1 overflow-y-auto p-6"
       style={{ background: "var(--bg-base)" }}
     >
-
-      {/* ── SECTION 1: Page Header ── */}
+      {/* Page Header */}
       <div className="mb-8">
         <h2 className="text-xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>
           Good morning, Aryan 👋
@@ -143,19 +264,20 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* ── SECTION 2: Key Metrics Cards ── */}
+      {/* Key Metrics Cards — 4 cards */}
       <section className="mb-10">
         <p className="text-xs font-semibold tracking-widest uppercase mb-4" style={{ color: "var(--text-muted)" }}>
           Key Metrics
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 relative">
-          {ANALYTICS_CARDS.map((card) => (
-            <AnalyticsCard key={card.id} card={card} />
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 relative">
+          {isLoading
+            ? [1, 2, 3, 4].map((i) => <CardSkeleton key={i} />)
+            : cards.map((card) => <AnalyticsCard key={card.id} card={card} />)
+          }
         </div>
       </section>
 
-      {/* ── SECTION DIVIDER ── */}
+      {/* Section Divider */}
       <div
         className="flex items-center gap-4 mb-8"
         style={{ borderTop: "1px solid var(--bg-border)", paddingTop: "2rem" }}
@@ -171,33 +293,28 @@ export default function Dashboard() {
         <div
           className="ml-auto px-3 py-1 rounded-lg text-xs font-medium"
           style={{
-            background: "var(--bg-elevated)",
-            border: "1px solid var(--bg-border)",
-            color: "var(--text-muted)",
+            background: analytics ? "var(--accent-glow)" : "var(--bg-elevated)",
+            border: analytics ? "1px solid rgba(0,212,170,0.2)" : "1px solid var(--bg-border)",
+            color: analytics ? "var(--accent-primary)" : "var(--text-muted)",
           }}
         >
-          Step 1 → 4
+          {analytics ? "✓ Data Loaded" : "Step 1 → 4"}
         </div>
       </div>
 
-      {/* ── STEP 1: CSV Upload ──
-          CSVUpload manages its own state (uploaded / not).
-          Dashboard just places it. No props needed. */}
+      {/* CSV Upload */}
       <CSVUpload />
 
-      {/* ── STEP 2 & 3: Charts Side by Side ──
-          lg:grid-cols-2 = side by side on large screens
-          grid-cols-1    = stacked on mobile */}
+      {/* Charts */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
         <ExpensePieChart />
         <ExpenseBarChart />
       </section>
 
-      {/* ── STEP 4: AI Insights Full Width ── */}
+      {/* AI Insights */}
       <section className="mb-8">
         <AIInsights />
       </section>
-
     </main>
   );
 }

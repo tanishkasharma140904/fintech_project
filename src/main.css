@@ -1,18 +1,10 @@
-/* ============================================================
-   FILE: src/main.css
-   PURPOSE: Global CSS for the entire app.
-   This file sets up fonts, CSS variables (color tokens),
-   and base body styles. Tailwind's base layers are also
-   imported here so every component can use utility classes.
-   ============================================================ */
+/* Global CSS — fonts, variables, base styles, utilities */
 
-/* Step 1: Import Tailwind's three layers */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Step 2: Import a distinctive font from Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
 
 /* Step 3: Define CSS custom properties (variables).
    These are like "named colors" you can reuse everywhere.

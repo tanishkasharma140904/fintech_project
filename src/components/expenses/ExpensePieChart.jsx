@@ -1,37 +1,16 @@
-// ============================================================
-// FILE: src/components/expenses/ExpensePieChart.jsx
-// PURPOSE: Donut-style pie chart showing expense by category.
-//
-// WHAT IT TEACHES:
-//   1. How to import and use a Recharts chart component
-//   2. How ResponsiveContainer makes charts fill their parent
-//   3. Custom legend rendering with .map()
-//   4. How Recharts uses your data array (name + value fields)
-//
-// HOW IT CONNECTS:
-//   Dashboard.jsx renders this in the left column of the charts grid.
-//   It imports categoryExpenses data directly — no props needed here.
-// ============================================================
-
-// Named imports from recharts — you only import what you use
 import {
-  PieChart,          // the outer chart wrapper
-  Pie,               // the actual pie/donut shape
-  Cell,              // lets you colour each slice individually
-  Tooltip,           // the popup that shows on hover
-  ResponsiveContainer // makes the chart resize with its parent
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer
 } from "recharts";
 
-import { categoryExpenses } from "../../data/expenseData";
+import { useAnalytics } from "../../context/AnalyticsContext";
 
-// ── Custom Tooltip ───────────────────────────────────────────
-// Recharts calls this component when the user hovers a slice.
-// It receives "active" (is a slice hovered?) and "payload" (the data).
-// This replaces Recharts' default plain-white tooltip.
 function CustomTooltip({ active, payload }) {
-  // "active" is true only when the cursor is over a slice
   if (active && payload && payload.length) {
-    const item = payload[0].payload; // the hovered category's data object
+    const item = payload[0].payload;
 
     return (
       <div
@@ -50,20 +29,57 @@ function CustomTooltip({ active, payload }) {
       </div>
     );
   }
-  return null; // return null = render nothing when not hovering
+  return null;
 }
 
-// ── Main Component ───────────────────────────────────────────
 export default function ExpensePieChart() {
+  const { analytics, status } = useAnalytics();
+  const categoryData = analytics?.by_category || [];
+  const total = categoryData.reduce((sum, item) => sum + item.value, 0);
 
-  // Calculate total for percentage display in the legend
-  // .reduce() sums all "value" fields: (0 + 12400 + 9800 + ...) = total
-  const total = categoryExpenses.reduce((sum, item) => sum + item.value, 0);
+  if (status === "loading") {
+    return (
+      <div className="card flex flex-col gap-5">
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } } @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
+        <div>
+          <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Spending by Category</h3>
+          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Processing...</p>
+        </div>
+        <div className="relative" style={{ height: "200px" }}>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full border-2 border-transparent"
+              style={{ borderTopColor: "var(--accent-primary)", animation: "spin 1s linear infinite" }} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+          {[1,2,3,4].map(i => (
+            <div key={i} className="h-4 rounded" style={{ background: "var(--bg-elevated)", animation: "pulse 2s ease-in-out infinite" }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (categoryData.length === 0) {
+    return (
+      <div className="card flex flex-col gap-5">
+        <div>
+          <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Spending by Category</h3>
+          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Current month breakdown</p>
+        </div>
+        <div className="flex flex-col items-center justify-center py-12" style={{ color: "var(--text-muted)" }}>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4, marginBottom: "12px" }}>
+            <circle cx="12" cy="12" r="10" /><path d="M12 2a10 10 0 0 1 10 10" />
+          </svg>
+          <p className="text-xs">Upload a CSV to see category breakdown</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="card flex flex-col gap-5">
 
-      {/* Card Header */}
       <div>
         <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
           Spending by Category
@@ -73,43 +89,30 @@ export default function ExpensePieChart() {
         </p>
       </div>
 
-      {/* ── Chart + Center Label ────────────────────────────
-          The chart container is "relative" positioned so we can
-          place an absolutely-positioned total label at the center. */}
       <div className="relative" style={{ height: "200px" }}>
-
-        {/* ResponsiveContainer: fills the parent div's width/height.
-            Always wrap your chart in this — never hardcode chart width! */}
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
-              data={categoryExpenses}  // ← your array from expenseData.js
-              cx="50%"                 // center X (50% = horizontal center)
-              cy="50%"                 // center Y
-              innerRadius={60}         // makes it a donut (0 = full pie)
-              outerRadius={90}         // outer size
-              paddingAngle={3}         // gap between slices
-              dataKey="value"          // which field = the slice SIZE
-              strokeWidth={0}          // no border between slices
+              data={categoryData}
+              cx="50%"
+              cy="50%"
+              innerRadius={60}
+              outerRadius={90}
+              paddingAngle={3}
+              dataKey="value"
+              strokeWidth={0}
             >
-              {/* For each data item, render a Cell with its own color.
-                  Without Cell, all slices would be the same color. */}
-              {categoryExpenses.map((entry) => (
+              {categoryData.map((entry) => (
                 <Cell
                   key={entry.name}
                   fill={entry.color}
-                  // On hover, the slice gets a slight opacity drop
-                  // (Recharts handles this automatically)
                 />
               ))}
             </Pie>
-
-            {/* Tooltip uses our custom component defined above */}
             <Tooltip content={<CustomTooltip />} />
           </PieChart>
         </ResponsiveContainer>
 
-        {/* Center label — absolute positioned over the donut hole */}
         <div
           className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
         >
@@ -123,21 +126,16 @@ export default function ExpensePieChart() {
         </div>
       </div>
 
-      {/* ── Legend ─────────────────────────────────────────
-          We build our own legend instead of using Recharts' default.
-          Why? More control over layout, font, and spacing. */}
       <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-        {categoryExpenses.map((item) => {
+        {categoryData.map((item) => {
           const pct = ((item.value / total) * 100).toFixed(1);
 
           return (
             <div key={item.name} className="flex items-center gap-2">
-              {/* Colour dot */}
               <span
                 className="w-2 h-2 rounded-full flex-shrink-0"
                 style={{ background: item.color }}
               />
-              {/* Name + percentage */}
               <span className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>
                 {item.name}
               </span>

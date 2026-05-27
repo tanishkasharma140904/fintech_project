@@ -1,33 +1,16 @@
-// ============================================================
-// FILE: src/components/expenses/ExpenseBarChart.jsx
-// PURPOSE: Bar chart showing monthly spending trends over 12 months.
-//
-// WHAT IT TEACHES:
-//   1. Recharts BarChart — different chart type, same pattern
-//   2. XAxis / YAxis configuration (tick formatting)
-//   3. CartesianGrid for readable background lines
-//   4. Custom bar shape using a function (advanced but useful)
-//   5. How to format currency on Y-axis labels
-//
-// HOW IT CONNECTS:
-//   Dashboard.jsx renders this in the right column of the charts grid,
-//   next to ExpensePieChart.
-// ============================================================
-
 import {
-  BarChart,            // outer wrapper for bar charts
-  Bar,                 // the actual bars
-  XAxis,               // horizontal axis
-  YAxis,               // vertical axis
-  CartesianGrid,       // background grid lines
-  Tooltip,             // hover popup
-  ResponsiveContainer, // auto-resize
-  Cell,                // per-bar coloring
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
 } from "recharts";
 
-import { monthlyExpenses } from "../../data/expenseData";
+import { useAnalytics } from "../../context/AnalyticsContext";
 
-// ── Custom Tooltip ───────────────────────────────────────────
 function CustomTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {
     return (
@@ -51,13 +34,9 @@ function CustomTooltip({ active, payload, label }) {
   return null;
 }
 
-// ── Rounded Bar Shape ────────────────────────────────────────
-// Recharts lets you pass a custom "shape" to Bar.
-// This function draws a rectangle with rounded TOP corners only.
-// props = the bar's position/size data provided by Recharts
 function RoundedBar(props) {
   const { x, y, width, height, fill } = props;
-  const radius = 4; // corner radius in pixels
+  const radius = 4;
 
   if (height <= 0) return null;
 
@@ -77,16 +56,60 @@ function RoundedBar(props) {
   );
 }
 
-// ── Main Component ───────────────────────────────────────────
 export default function ExpenseBarChart() {
+  const { analytics, status } = useAnalytics();
+  const monthlyData = analytics?.by_month || [];
+  const chartData = monthlyData.map(m => ({ month: m.month, amount: m.spending }));
+  const annualTotal = chartData.reduce((s, m) => s + m.amount, 0);
+  const maxAmount = chartData.length > 0 ? Math.max(...chartData.map(m => m.amount)) : 0;
 
-  // Find the highest spending month — we'll highlight it
-  const maxAmount = Math.max(...monthlyExpenses.map(m => m.amount));
+  if (status === "loading") {
+    return (
+      <div className="card flex flex-col gap-5">
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } } @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Monthly Spending</h3>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Processing...</p>
+          </div>
+        </div>
+        <div className="relative" style={{ height: "200px" }}>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full border-2 border-transparent"
+              style={{ borderTopColor: "var(--accent-primary)", animation: "spin 1s linear infinite" }} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+          {[1,2,3,4].map(i => (
+            <div key={i} className="h-4 rounded" style={{ background: "var(--bg-elevated)", animation: "pulse 2s ease-in-out infinite" }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (chartData.length === 0) {
+    return (
+      <div className="card flex flex-col gap-5">
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Monthly Spending</h3>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Full year overview</p>
+          </div>
+        </div>
+        <div className="flex flex-col items-center justify-center py-12" style={{ color: "var(--text-muted)" }}>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4, marginBottom: "12px" }}>
+            <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
+          </svg>
+          <p className="text-xs">Upload a CSV to see monthly trends</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="card flex flex-col gap-5">
 
-      {/* Card Header with total annual figure */}
       <div className="flex items-start justify-between">
         <div>
           <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -97,44 +120,38 @@ export default function ExpenseBarChart() {
           </p>
         </div>
 
-        {/* Annual total — calculated from the data */}
         <div className="text-right">
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>Annual Total</p>
           <p className="text-sm font-bold font-finance" style={{ color: "var(--text-primary)" }}>
-            ₹{(monthlyExpenses.reduce((s, m) => s + m.amount, 0) / 100000).toFixed(2)}L
+            ₹{(annualTotal / 100000).toFixed(2)}L
           </p>
         </div>
       </div>
 
-      {/* ── Bar Chart ─────────────────────────────────────── */}
       <div style={{ height: "200px" }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
-            data={monthlyExpenses}
+            data={chartData}
             margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
-            // left: -20 nudges Y-axis labels left so they don't get cut off
             barSize={18}
           >
-            {/* Grid lines — strokeDasharray makes them dotted */}
             <CartesianGrid
               strokeDasharray="3 3"
               stroke="var(--bg-border)"
-              vertical={false}  // only horizontal lines — cleaner
+              vertical={false}
             />
 
-            {/* X Axis (months) */}
             <XAxis
-              dataKey="month"   // ← must match key name in your data array
+              dataKey="month"
               tick={{
                 fill: "var(--text-muted)",
                 fontSize: 11,
                 fontFamily: "DM Sans, sans-serif",
               }}
-              axisLine={false}   // hide the axis border line
-              tickLine={false}   // hide the little tick marks
+              axisLine={false}
+              tickLine={false}
             />
 
-            {/* Y Axis (amounts) */}
             <YAxis
               tick={{
                 fill: "var(--text-muted)",
@@ -143,31 +160,26 @@ export default function ExpenseBarChart() {
               }}
               axisLine={false}
               tickLine={false}
-              // tickFormatter: converts raw numbers to readable labels
-              // 18400 → "18k", 31200 → "31k" etc.
               tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`}
             />
 
             <Tooltip
               content={<CustomTooltip />}
-              cursor={{ fill: "rgba(255,255,255,0.04)" }} // hover highlight
+              cursor={{ fill: "rgba(255,255,255,0.04)" }}
             />
 
-            {/* The bars themselves */}
             <Bar
-              dataKey="amount"       // ← which data field = bar height
-              shape={<RoundedBar />} // use our custom rounded shape
-              radius={[4, 4, 0, 0]}  // fallback if RoundedBar fails
+              dataKey="amount"
+              shape={<RoundedBar />}
+              radius={[4, 4, 0, 0]}
             >
-              {/* Color each bar individually:
-                  highest month = accent teal, others = dimmer blue */}
-              {monthlyExpenses.map((entry) => (
+              {chartData.map((entry) => (
                 <Cell
                   key={entry.month}
                   fill={
                     entry.amount === maxAmount
-                      ? "var(--accent-primary)"  // highlight the max bar
-                      : "var(--bg-border)"       // muted for others
+                      ? "var(--accent-primary)"
+                      : "var(--bg-border)"
                   }
                 />
               ))}
@@ -176,7 +188,6 @@ export default function ExpenseBarChart() {
         </ResponsiveContainer>
       </div>
 
-      {/* Legend note */}
       <div className="flex items-center gap-4 text-xs" style={{ color: "var(--text-muted)" }}>
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-sm" style={{ background: "var(--accent-primary)" }} />
