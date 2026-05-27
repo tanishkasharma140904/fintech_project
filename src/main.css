@@ -1,0 +1,142 @@
+/* ============================================================
+   FILE: src/main.css
+   PURPOSE: Global CSS for the entire app.
+   This file sets up fonts, CSS variables (color tokens),
+   and base body styles. Tailwind's base layers are also
+   imported here so every component can use utility classes.
+   ============================================================ */
+
+/* Step 1: Import Tailwind's three layers */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Step 2: Import a distinctive font from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+/* Step 3: Define CSS custom properties (variables).
+   These are like "named colors" you can reuse everywhere.
+   Change one variable → the whole app updates. */
+:root {
+  /* Background layers - dark fintech palette */
+  --bg-base:        #0a0d14;   /* deepest background */
+  --bg-surface:     #111827;   /* card / sidebar background */
+  --bg-elevated:    #1a2235;   /* hover states, active rows */
+  --bg-border:      #1f2d45;   /* subtle dividers */
+
+  /* Brand accent - electric teal */
+  --accent-primary: #00d4aa;
+  --accent-glow:    rgba(0, 212, 170, 0.15);
+  --accent-dim:     rgba(0, 212, 170, 0.6);
+
+  /* Text hierarchy */
+  --text-primary:   #e8edf5;
+  --text-secondary: #8b9ab5;
+  --text-muted:     #4a5a72;
+
+  /* Status colors */
+  --green:  #10d078;
+  --red:    #ff4d6a;
+  --yellow: #f5a623;
+  --blue:   #4d9fff;
+
+  /* Typography */
+  --font-sans: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+/* Step 4: Apply base styles to the whole page */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Step 5: Scrollbar styling — tiny detail, big fintech feel */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-border);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-dim);
+}
+
+/* Step 6: Reusable utility classes you'll use in components */
+
+/* Card base style — glass-morphism fintech card */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-border);
+  border-radius: 14px;
+  padding: 1.5rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 24px var(--accent-glow);
+}
+
+/* Accent highlight bar used on active sidebar items */
+.active-indicator {
+  width: 3px;
+  height: 100%;
+  background: var(--accent-primary);
+  border-radius: 0 3px 3px 0;
+  box-shadow: 0 0 10px var(--accent-primary);
+}
+
+/* Number font for all financial figures */
+.font-finance {
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+}
+
+/* Subtle gradient overlay for cards */
+.card-gradient {
+  background: linear-gradient(
+    135deg,
+    var(--bg-surface) 0%,
+    var(--bg-elevated) 100%
+  );
+}
+
+/* Badge / pill component */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.badge-green {
+  background: rgba(16, 208, 120, 0.12);
+  color: var(--green);
+  border: 1px solid rgba(16, 208, 120, 0.25);
+}
+
+.badge-red {
+  background: rgba(255, 77, 106, 0.12);
+  color: var(--red);
+  border: 1px solid rgba(255, 77, 106, 0.25);
+}
