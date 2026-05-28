@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { useAuth } from "./AuthContext";
 
 const NotificationContext = createContext(null);
 
@@ -75,17 +76,31 @@ const TELEMETRY_ALERTS = [
 ];
 
 export function NotificationProvider({ children }) {
-  const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem("artho_notifications");
-    return saved ? JSON.parse(saved) : SEED_NOTIFICATIONS;
-  });
-
+  const { currentUser } = useAuth();
+  const [notifications, setNotifications] = useState(SEED_NOTIFICATIONS);
   const [toasts, setToasts] = useState([]);
+
+  // Load notifications dynamically when user logs in/switches
+  useEffect(() => {
+    const uid = currentUser?.uid || "guest";
+    try {
+      const saved = localStorage.getItem(`artho_notifications_${uid}`);
+      setNotifications(saved ? JSON.parse(saved) : SEED_NOTIFICATIONS);
+    } catch (e) {
+      console.error("Error loading notifications from localStorage:", e);
+      setNotifications(SEED_NOTIFICATIONS);
+    }
+  }, [currentUser]);
 
   // Persist notifications on update
   useEffect(() => {
-    localStorage.setItem("artho_notifications", JSON.stringify(notifications));
-  }, [notifications]);
+    const uid = currentUser?.uid || "guest";
+    try {
+      localStorage.setItem(`artho_notifications_${uid}`, JSON.stringify(notifications));
+    } catch (e) {
+      console.error("Error persisting notifications to localStorage:", e);
+    }
+  }, [notifications, currentUser]);
 
   // Master Dynamic Alert Trigger
   const addNotification = useCallback((notif) => {

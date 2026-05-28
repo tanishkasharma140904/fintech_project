@@ -71,17 +71,44 @@ export const NAVIGATION_ROUTES = [
   }
 ];
 
+// Additional page title mappings for non-dashboard pages
+const PAGE_TITLES = {
+  "/": "Welcome",
+  "/login": "Sign In",
+  "/signup": "Create Account",
+  "/forgot-password": "Reset Password",
+  "/onboarding": "Financial Onboarding",
+  "/generating": "Preparing Dashboard",
+};
+
 /**
  * Resolves current location path to matching config object with fallback to dashboard.
  */
 export function getRouteMetadata(pathname) {
-  if (!pathname || pathname === "/") {
+  if (!pathname) {
     return NAVIGATION_ROUTES.find(r => r.path === "/dashboard");
   }
   
+  // Check dashboard routes first
   const match = NAVIGATION_ROUTES.find(
     r => r.path.toLowerCase() === pathname.toLowerCase()
   );
   
-  return match || NAVIGATION_ROUTES.find(r => r.path === "/dashboard");
+  if (match) return match;
+
+  // Check non-dashboard pages
+  const pageTitle = PAGE_TITLES[pathname.toLowerCase()];
+  if (pageTitle) {
+    return {
+      path: pathname,
+      title: pageTitle,
+      label: pageTitle,
+      breadcrumbs: [pageTitle],
+      iconName: "",
+      description: "",
+    };
+  }
+
+  return null;
 }
+

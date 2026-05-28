@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useOnboarding } from "../context/OnboardingContext";
 
 const EMPLOYMENT_TYPES = [
@@ -63,6 +64,7 @@ const ANIM_CSS = `
 `;
 
 export default function FinancialOnboarding() {
+  const navigate = useNavigate();
   const { completeOnboarding } = useOnboarding();
   const [step, setStep] = useState(1);
 
@@ -126,8 +128,8 @@ export default function FinancialOnboarding() {
       if (!formData.occupation.trim()) errs.occupation = "Occupation is required";
       if (!formData.cityCountry.trim()) errs.cityCountry = "Location is required";
     } else if (step === 2) {
-      if (!formData.monthlyIncome || parseFloat(formData.monthlyIncome) <= 0) {
-        errs.monthlyIncome = "Valid monthly income is required";
+      if (formData.monthlyIncome && parseFloat(formData.monthlyIncome) < 0) {
+        errs.monthlyIncome = "Valid monthly income must be positive";
       }
     } else if (step === 3) {
       if (formData.goals.length === 0) {
@@ -162,14 +164,22 @@ export default function FinancialOnboarding() {
 
   const handleSubmit = () => {
     if (validateStep()) {
+      const valIncome = formData.monthlyIncome ? parseFloat(formData.monthlyIncome) : null;
       completeOnboarding({
         ...formData,
         age: parseInt(formData.age),
-        monthlyIncome: parseFloat(formData.monthlyIncome),
+        monthlyIncome: valIncome, // compatibility mirror
+        manualIncome: valIncome,
+        detectedIncome: null,
+        effectiveIncome: valIncome,
+        incomeSource: valIncome ? "manual" : null,
+        incomeMismatchDetected: false,
         monthlySavingsGoal: parseFloat(formData.monthlySavingsGoal),
         approxDebtBalance: formData.hasLoans === "yes" ? parseFloat(formData.approxDebtBalance) : 0,
         completedAt: new Date().toISOString(),
       });
+      // Redirect to the dashboard generation "magic moment" screen
+      navigate("/generating", { replace: true });
     }
   };
 
@@ -289,7 +299,7 @@ export default function FinancialOnboarding() {
         {step === 2 && (
           <div style={{ animation: "onboardingFadeIn 0.3s ease" }} className="space-y-6">
             <OnboardingField
-              label="Monthly Take-Home Income"
+              label="Monthly Take-Home Income (Optional)"
               placeholder="e.g. 150000"
               type="number"
               value={formData.monthlyIncome}
@@ -298,6 +308,9 @@ export default function FinancialOnboarding() {
               prefix="₹"
               icon="💰"
             />
+            <p className="text-xs -mt-4 text-left" style={{ color: "var(--text-muted)", paddingLeft: "2.75rem", lineHeight: "1.4" }}>
+              We can also estimate this later from your bank statement.
+            </p>
 
             <div>
               <label className="text-xs font-semibold tracking-wider text-gray-400 uppercase mb-3 block">
@@ -619,7 +632,7 @@ export default function FinancialOnboarding() {
             <div className="p-3 rounded-lg flex items-start gap-2.5 text-xs bg-cyan-950 bg-opacity-20 border border-cyan-800 border-opacity-30">
               <span className="text-base mt-0.5">🧠</span>
               <p className="leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                By finalizing, Antigravity AI will create a **premium personalized financial identity dashboard** linking
+                By finalizing, Artho AI will create a <strong>premium personalized financial identity dashboard</strong> linking
                 your expense trends, planned investments, and liabilities. You can override these options anytime.
               </p>
             </div>

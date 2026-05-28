@@ -1,5 +1,6 @@
 /**
  * UserContext — the master global source of truth for user SaaS personalization.
+ * Synchronized reactively with Cloud Firestore database or local mock DB under active Auth sessions.
  * 
  * Provides:
  *   user       - profile data object (fullName, occupation, income, risk, isOnboarded)
@@ -13,20 +14,24 @@
  *   resetUser()              - resets both profile and appearance to defaults
  */
 import { createContext, useContext, useState, useEffect } from "react";
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import { db } from "../firebase";
+import { useAuth } from "./AuthContext";
+import { useAnalytics } from "./AnalyticsContext";
 
 const UserContext = createContext(null);
 
-const STORAGE_KEYS = {
-  profile: "fintech_user_profile",
-  appearance: "fintech_user_appearance",
-};
-
 const DEFAULT_PROFILE = {
-  fullName: "Aryan Kumar",
+  fullName: "Guest User",
   age: 28,
   occupation: "Senior Portfolio Analyst",
   cityCountry: "New Delhi, India",
-  monthlyIncome: 150000,
+  monthlyIncome: 150000, // kept for backwards-compatibility
+  manualIncome: 150000,
+  detectedIncome: null,
+  effectiveIncome: 150000,
+  incomeSource: "manual",
+  incomeMismatchDetected: false,
   employmentType: "salaried",
   maritalStatus: "single",
   dependents: 0,
@@ -48,6 +53,9 @@ const DEFAULT_APPEARANCE = {
 };
 
 export function UserProvider({ children }) {
+  const { currentUser, isDemoMode, loading: authLoading } = useAuth();
+  const { analytics } = useAnalytics();
+
   // ── 1. CORE STATES ──
   const [user, setUser] = useState(DEFAULT_PROFILE);
   const [appearance, setAppearance] = useState(DEFAULT_APPEARANCE);
@@ -59,55 +67,93 @@ export function UserProvider({ children }) {
   });
   const [loading, setLoading] = useState(true);
 
-  // ── 2. INITIALIZATION ON MOUNT ──
+  // ── 2. REACTIVE DB SYNCHRONIZATION ──
   useEffect(() => {
-    try {
-      // Load Profile
-      const storedProfile = localStorage.getItem(STORAGE_KEYS.profile);
-      const oldOnboarding = localStorage.getItem("fintech_onboarding"); // check legacy key for seamless compatibility
-      
-      let profileObj = DEFAULT_PROFILE;
-      if (storedProfile) {
-        profileObj = JSON.parse(storedProfile);
-      } else if (oldOnboarding) {
-        // Migration support from old onboarding context
-        const parsed = JSON.parse(oldOnboarding);
-        profileObj = { ...DEFAULT_PROFILE, ...parsed, completed: true };
-      }
-      setUser(profileObj);
-
-      // Load Appearance
-      const storedAppearance = localStorage.getItem(STORAGE_KEYS.appearance);
-      let appearanceObj = DEFAULT_APPEARANCE;
-      if (storedAppearance) {
-        appearanceObj = JSON.parse(storedAppearance);
-      } else {
-        // Fallback checks on old setting values
-        const legacyTheme = localStorage.getItem("fintech_theme_mode");
-        const legacyAccent = localStorage.getItem("fintech_accent_color");
-        const legacyCompact = localStorage.getItem("fintech_compact_mode") === "true";
-        const legacyGlass = localStorage.getItem("fintech_glass_intensity");
-        const legacyMotion = localStorage.getItem("fintech_reduced_motion") === "true";
-
-        appearanceObj = {
-          theme: legacyTheme || DEFAULT_APPEARANCE.theme,
-          accent: legacyAccent || DEFAULT_APPEARANCE.accent,
-          compactMode: legacyCompact,
-          glassIntensity: legacyGlass ? parseInt(legacyGlass) : DEFAULT_APPEARANCE.glassIntensity,
-          reducedMotion: legacyMotion,
-        };
-      }
-      setAppearance(appearanceObj);
-      
-      // Inject Visual Custom Properties instantly on load
-      applyCSSVariables(appearanceObj);
-
-    } catch (err) {
-      console.error("Error initializing UserContext:", err);
-    } finally {
-      setLoading(false);
+    // CRITICAL: If auth is still loading, keep UserContext loading too.
+    // This prevents OnboardingGuard from seeing stale completed=false.
+    if (authLoading) {
+      setLoading(true);
+      return;
     }
-  }, []);
+
+    if (!currentUser) {
+      // Auth finished loading and user is genuinely logged out
+      setUser(DEFAULT_PROFILE);
+      setAppearance(DEFAULT_APPEARANCE);
+      applyCSSVariables(DEFAULT_APPEARANCE);
+      setLoading(false);
+      return;
+    }
+
+    const fetchUserData = async () => {
+      setLoading(true);
+      try {
+        if (isDemoMode) {
+          const storedData = localStorage.getItem(`artho_mock_db_${currentUser.uid}`);
+          if (storedData) {
+            const parsed = JSON.parse(storedData);
+            if (parsed.profile) setUser(parsed.profile);
+            if (parsed.appearance) {
+              setAppearance(parsed.appearance);
+              applyCSSVariables(parsed.appearance);
+            }
+          } else {
+            // Seed mock database if not exists
+            const initProfile = { 
+              ...DEFAULT_PROFILE, 
+              fullName: currentUser.fullName || "Aryan Kumar", 
+              email: currentUser.email 
+            };
+            localStorage.setItem(`artho_mock_db_${currentUser.uid}`, JSON.stringify({
+              profile: initProfile,
+              appearance: DEFAULT_APPEARANCE
+            }));
+            setUser(initProfile);
+            setAppearance(DEFAULT_APPEARANCE);
+            applyCSSVariables(DEFAULT_APPEARANCE);
+          }
+        } else {
+          // Real Cloud Firestore Database Fetch
+          const docRef = doc(db, "users", currentUser.uid);
+          const docSnap = await getDoc(docRef);
+          
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.profile) setUser(data.profile);
+            if (data.appearance) {
+              setAppearance(data.appearance);
+              applyCSSVariables(data.appearance);
+            }
+          } else {
+            // Seed Cloud document on first login if Auth exists but Firestore doc is blank
+            const initProfile = { 
+              ...DEFAULT_PROFILE, 
+              fullName: currentUser.displayName || "Aryan Kumar", 
+              email: currentUser.email 
+            };
+            await setDoc(docRef, {
+              profile: initProfile,
+              appearance: DEFAULT_APPEARANCE,
+              createdAt: new Date().toISOString()
+            });
+            setUser(initProfile);
+            setAppearance(DEFAULT_APPEARANCE);
+            applyCSSVariables(DEFAULT_APPEARANCE);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching user data from DB:", err);
+        // Robust offline fallback
+        setUser(DEFAULT_PROFILE);
+        setAppearance(DEFAULT_APPEARANCE);
+        applyCSSVariables(DEFAULT_APPEARANCE);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, [currentUser, isDemoMode, authLoading]);
 
   // ── 3. TELEMETRY INTERVAL FLUCTUATIONS ──
   useEffect(() => {
@@ -159,38 +205,163 @@ export function UserProvider({ children }) {
 
   // ── 5. EXPORTED MUTATION METHODS ──
   const updateProfile = (data) => {
+    if (!currentUser) return;
+
     setUser((prev) => {
       const next = { ...prev, ...data };
-      localStorage.setItem(STORAGE_KEYS.profile, JSON.stringify(next));
+      
+      const saveToDb = async () => {
+        try {
+          if (isDemoMode) {
+            const stored = localStorage.getItem(`artho_mock_db_${currentUser.uid}`);
+            const parsed = stored ? JSON.parse(stored) : {};
+            parsed.profile = next;
+            localStorage.setItem(`artho_mock_db_${currentUser.uid}`, JSON.stringify(parsed));
+          } else {
+            const docRef = doc(db, "users", currentUser.uid);
+            await setDoc(docRef, { profile: next }, { merge: true });
+          }
+        } catch (e) {
+          console.error("Failed to update profile in DB:", e);
+        }
+      };
+      saveToDb();
+
       return next;
     });
   };
 
   const updateAppearance = (data) => {
+    if (!currentUser) return;
+
     setAppearance((prev) => {
       const next = { ...prev, ...data };
-      localStorage.setItem(STORAGE_KEYS.appearance, JSON.stringify(next));
       applyCSSVariables(next);
+
+      const saveToDb = async () => {
+        try {
+          if (isDemoMode) {
+            const stored = localStorage.getItem(`artho_mock_db_${currentUser.uid}`);
+            const parsed = stored ? JSON.parse(stored) : {};
+            parsed.appearance = next;
+            localStorage.setItem(`artho_mock_db_${currentUser.uid}`, JSON.stringify(parsed));
+          } else {
+            const docRef = doc(db, "users", currentUser.uid);
+            await setDoc(docRef, { appearance: next }, { merge: true });
+          }
+        } catch (e) {
+          console.error("Failed to update appearance in DB:", e);
+        }
+      };
+      saveToDb();
+
       return next;
     });
   };
 
   const completeOnboarding = (data) => {
+    if (!currentUser) return;
+
     setUser((prev) => {
       const next = { ...prev, ...data, completed: true };
-      localStorage.setItem(STORAGE_KEYS.profile, JSON.stringify(next));
-      // Keep old key synced for backwards-compatibility safety
-      localStorage.setItem("fintech_onboarding", JSON.stringify(next));
+
+      const saveToDb = async () => {
+        try {
+          if (isDemoMode) {
+            const stored = localStorage.getItem(`artho_mock_db_${currentUser.uid}`);
+            const parsed = stored ? JSON.parse(stored) : {};
+            parsed.profile = next;
+            localStorage.setItem(`artho_mock_db_${currentUser.uid}`, JSON.stringify(parsed));
+          } else {
+            const docRef = doc(db, "users", currentUser.uid);
+            await setDoc(docRef, { profile: next }, { merge: true });
+          }
+        } catch (e) {
+          console.error("Failed to complete onboarding in DB:", e);
+        }
+      };
+      saveToDb();
+
       return next;
     });
   };
 
+  const resolveIncomeMismatch = (preference) => {
+    if (!currentUser) return;
+
+    if (preference === "manual") {
+      updateProfile({
+        effectiveIncome: user.manualIncome,
+        monthlyIncome: user.manualIncome, // compatibility mirror
+        incomeSource: "manual",
+        incomeMismatchDetected: false
+      });
+    } else if (preference === "detected") {
+      updateProfile({
+        effectiveIncome: user.detectedIncome,
+        monthlyIncome: user.detectedIncome, // compatibility mirror
+        incomeSource: "detected",
+        incomeMismatchDetected: false
+      });
+    } else if (preference === "remind") {
+      // Temporarily clear mismatch flag for this runtime session without updating database
+      updateProfile({
+        incomeMismatchDetected: false
+      });
+    }
+  };
+
+  // Dynamic Income Estimation & Mismatch Detection Logic
+  useEffect(() => {
+    if (!currentUser || !analytics?.summary) return;
+
+    const summary = analytics.summary;
+    const months = Math.max(1, analytics.by_month?.length || 1);
+    const detected = summary.total_income > 0 ? Math.round(summary.total_income / months) : 0;
+
+    if (detected === 0) return;
+
+    // Check if detected income has changed compared to user's currently stored detectedIncome
+    if (detected !== user.detectedIncome) {
+      const manual = user.manualIncome;
+      let nextEffective = user.effectiveIncome;
+      let nextSource = user.incomeSource;
+      let mismatch = false;
+
+      if (manual === null || manual === undefined) {
+        // CASE A: manualIncome is null/empty
+        nextEffective = detected;
+        nextSource = "detected";
+        mismatch = false;
+      } else {
+        // Both manualIncome and detectedIncome exist
+        const diffPercent = Math.abs(detected - manual) / manual;
+        if (diffPercent <= 0.20) {
+          // CASE B: Difference is small (<= 20%)
+          nextEffective = manual;
+          nextSource = "manual";
+          mismatch = false;
+        } else {
+          // CASE C: Mismatch exceeds threshold (> 20%)
+          mismatch = true;
+          // Keep effectiveIncome and source unchanged for now, let user decide
+        }
+      }
+
+      // Update the user profile with estimated values
+      updateProfile({
+        detectedIncome: detected,
+        effectiveIncome: nextEffective,
+        monthlyIncome: nextEffective, // compatibility mirror
+        incomeSource: nextSource,
+        incomeMismatchDetected: mismatch
+      });
+    }
+  }, [analytics, currentUser, user.detectedIncome, user.manualIncome, user.effectiveIncome, user.incomeSource]);
+
   const resetUser = () => {
     setUser(DEFAULT_PROFILE);
     setAppearance(DEFAULT_APPEARANCE);
-    localStorage.removeItem(STORAGE_KEYS.profile);
-    localStorage.removeItem(STORAGE_KEYS.appearance);
-    localStorage.removeItem("fintech_onboarding");
     applyCSSVariables(DEFAULT_APPEARANCE);
   };
 
@@ -200,14 +371,16 @@ export function UserProvider({ children }) {
         user,
         appearance,
         telemetry,
-        loading,
+        loading: loading,
+        isOnboarded: !!user?.completed,
         updateProfile,
         updateAppearance,
         completeOnboarding,
         resetUser,
+        resolveIncomeMismatch,
       }}
     >
-      {!loading && children}
+      {children}
     </UserContext.Provider>
   );
 }

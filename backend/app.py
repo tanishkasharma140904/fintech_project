@@ -595,6 +595,36 @@ def get_analytics():
     })
 
 
+@app.route("/process-transactions", methods=["POST"])
+def process_transactions():
+    data = request.get_json()
+    if not data or "transactions" not in data:
+        return jsonify({"status": "error", "message": "No transactions data provided."}), 400
+
+    transactions = data["transactions"]
+    analytics = compute_analytics(transactions)
+
+    # Sync stateful in-memory store for subsequent calls
+    session_store["all_transactions"] = transactions
+    session_store["uploaded_files"] = ["Cloud Ledger"]
+
+    return jsonify({
+        "status": "success",
+        "message": f"Processed {len(transactions)} stored transactions",
+        "analytics": analytics,
+    })
+
+
+@app.route("/clear-transactions", methods=["POST"])
+def clear_transactions():
+    session_store["all_transactions"] = []
+    session_store["uploaded_files"] = []
+    return jsonify({
+        "status": "success",
+        "message": "Cleared session transactions successfully"
+    })
+
+
 # ── Error Handlers ───────────────────────────────────────────
 
 @app.errorhandler(404)

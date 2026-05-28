@@ -247,12 +247,20 @@ function CardSkeleton() {
 
 export default function Dashboard() {
   const { analytics, status } = useAnalytics();
-  const { user } = useUser();
+  const { user, resolveIncomeMismatch } = useUser();
   const cards = buildDynamicCards(analytics?.dashboard_cards);
   const isLoading = status === "loading";
 
   // Extract first name for the personal greeting
-  const firstName = user?.fullName ? user.fullName.split(" ")[0] : "Aryan";
+  const firstName = user?.fullName ? user.fullName.split(" ")[0] : "there";
+
+  // Dynamic time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  };
 
   return (
     <main
@@ -262,12 +270,115 @@ export default function Dashboard() {
       {/* Page Header */}
       <div className="mb-8">
         <h2 className="text-xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>
-          Good morning, {firstName} 👋
+          {getGreeting()}, {firstName} 👋
         </h2>
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
           Here's what's happening in your portfolio today.
         </p>
       </div>
+
+      {/* Income Mismatch Smart Alert Banner */}
+      {user?.incomeMismatchDetected && (
+        <div 
+          className="mb-8 p-5 rounded-2xl relative overflow-hidden transition-all duration-300 page-fade-in"
+          style={{
+            background: "linear-gradient(135deg, rgba(245, 166, 35, 0.08) 0%, rgba(10, 13, 20, 0.8) 100%)",
+            border: "1px solid rgba(245, 166, 35, 0.25)",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3), 0 0 20px rgba(245, 166, 35, 0.05)",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          {/* Subtle decorative radial gradient inside card */}
+          <div 
+            className="absolute -right-20 -top-20 w-48 h-48 rounded-full pointer-events-none filter blur-3xl opacity-30"
+            style={{ background: "var(--yellow)" }}
+          />
+
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative z-10">
+            <div className="flex gap-4">
+              <div 
+                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ 
+                  background: "rgba(245, 166, 35, 0.15)",
+                  border: "1px solid rgba(245, 166, 35, 0.3)",
+                  color: "var(--yellow)" 
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <div className="flex flex-col gap-1">
+                <h4 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                  Income Mismatch Detected
+                </h4>
+                <p className="text-xs leading-relaxed max-w-2xl" style={{ color: "var(--text-secondary)" }}>
+                  We detected an estimated monthly income of <span className="font-bold text-finance" style={{ color: "var(--accent-primary)" }}>₹{Number(user.detectedIncome || 0).toLocaleString('en-IN')}</span> from your bank transactions, which differs from your profile income of <span className="font-bold text-finance" style={{ color: "var(--text-primary)" }}>₹{Number(user.manualIncome || 0).toLocaleString('en-IN')}</span>. 
+                  Which income would you like Artho to use for analytics and financial recommendations?
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto flex-shrink-0">
+              <button
+                onClick={() => resolveIncomeMismatch("manual")}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200"
+                style={{
+                  background: "var(--bg-surface)",
+                  border: "1px solid var(--bg-border)",
+                  color: "var(--text-primary)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "var(--text-secondary)";
+                  e.currentTarget.style.background = "var(--bg-elevated)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "var(--bg-border)";
+                  e.currentTarget.style.background = "var(--bg-surface)";
+                }}
+              >
+                Keep Profile Income
+              </button>
+              <button
+                onClick={() => resolveIncomeMismatch("detected")}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200"
+                style={{
+                  background: "var(--accent-primary)",
+                  color: "var(--bg-base)",
+                  boxShadow: "0 0 12px var(--accent-glow)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.filter = "brightness(1.1)";
+                  e.currentTarget.style.boxShadow = "0 0 18px var(--accent-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.filter = "none";
+                  e.currentTarget.style.boxShadow = "0 0 12px var(--accent-glow)";
+                }}
+              >
+                Use Detected Income
+              </button>
+              <button
+                onClick={() => resolveIncomeMismatch("remind")}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200"
+                style={{
+                  color: "var(--text-muted)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "var(--text-secondary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
+              >
+                Remind Me Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Key Metrics Cards — 4 cards */}
       <section className="mb-10">

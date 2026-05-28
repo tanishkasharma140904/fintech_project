@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, BarChart, Bar, Legend
 } from "recharts";
 import { useAnalytics } from "../context/AnalyticsContext";
+import { useAuth } from "../context/AuthContext";
 import { useOnboarding } from "../context/OnboardingContext";
 import FinancialOnboarding from "./FinancialOnboarding";
 import { formatINR, formatINRFull } from "../utils/financeCalculators";
@@ -72,27 +74,31 @@ function ScoreRing({ score, color, size = 80 }) {
 export default function PortfolioOverview() {
   const { onboardingData, isOnboarded, resetOnboarding } = useOnboarding();
   const { analytics } = useAnalytics();
+  const { currentUser } = useAuth();
   
   // Tab index for the timelines section (5 charts)
   const [activeTab, setActiveTab] = useState("networth");
 
-  // Load active module states from localStorage dynamically
+  // Load active module states from localStorage dynamically scoped by UID
   const [activeInvestment, setActiveInvestment] = useState(null);
   const [activeDebts, setActiveDebts] = useState(null);
 
   useEffect(() => {
     if (isOnboarded) {
+      const uid = currentUser?.uid || "guest";
       try {
-        const inv = localStorage.getItem("fintech_active_investment");
+        const inv = localStorage.getItem(`fintech_active_investment_${uid}`);
         if (inv) setActiveInvestment(JSON.parse(inv));
+        else setActiveInvestment(null);
 
-        const dbt = localStorage.getItem("fintech_active_debts");
+        const dbt = localStorage.getItem(`fintech_active_debts_${uid}`);
         if (dbt) setActiveDebts(JSON.parse(dbt));
+        else setActiveDebts(null);
       } catch (e) {
         console.error("Error loading cross-module states:", e);
       }
     }
-  }, [isOnboarded]);
+  }, [isOnboarded, currentUser]);
 
   // Handle case where Onboarding has not been completed
   if (!isOnboarded) {
@@ -105,9 +111,7 @@ export default function PortfolioOverview() {
   const months = Math.max(1, analytics?.by_month?.length || 1);
 
   // Income metrics
-  const monthlyIncome = summary?.total_income > 0 
-    ? Math.round(summary.total_income / months) 
-    : (parseFloat(onboardingData.monthlyIncome) || 0);
+  const monthlyIncome = parseFloat(onboardingData.effectiveIncome || onboardingData.monthlyIncome) || 0;
 
   const monthlyExpenses = summary?.avg_monthly_spending || (monthlyIncome - (parseFloat(onboardingData.monthlySavingsGoal) || 0));
   const activeDebtEMI = activeDebts?.totalEMI || 0;
@@ -300,9 +304,9 @@ export default function PortfolioOverview() {
                 <p className="text-[11px] text-gray-500 mt-1 max-w-xs leading-relaxed">
                   Analyze your next big purchase (Car, House, Education) with our AI Affordability framework.
                 </p>
-                <a href="/estimator" className="mt-4 px-4 py-1.5 rounded-lg text-[10px] font-bold text-gray-950 no-underline" style={{ background: "linear-gradient(135deg, #c084fc, #a855f7)" }}>
+                <Link to="/investment-estimator" className="mt-4 px-4 py-1.5 rounded-lg text-[10px] font-bold text-gray-950 no-underline" style={{ background: "linear-gradient(135deg, #c084fc, #a855f7)" }}>
                   Plan Investment →
-                </a>
+                </Link>
               </div>
             )}
           </div>
@@ -360,9 +364,9 @@ export default function PortfolioOverview() {
                 <p className="text-[11px] text-gray-500 mt-1 max-w-xs leading-relaxed">
                   Track outstanding liabilities, model Avalanche / Snowball payouts, and fast-track debt freedom.
                 </p>
-                <a href="/debt" className="mt-4 px-4 py-1.5 rounded-lg text-[10px] font-bold text-gray-950 no-underline" style={{ background: "linear-gradient(135deg, #ff4d6a, #c084fc)" }}>
+                <Link to="/debt-management" className="mt-4 px-4 py-1.5 rounded-lg text-[10px] font-bold text-gray-950 no-underline" style={{ background: "linear-gradient(135deg, #ff4d6a, #c084fc)" }}>
                   Configure Debts →
-                </a>
+                </Link>
               </div>
             )}
           </div>

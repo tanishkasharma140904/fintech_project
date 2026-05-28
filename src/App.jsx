@@ -1,6 +1,7 @@
 import "./main.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { AuthProvider } from "./context/AuthContext";
 import { AnalyticsProvider } from "./context/AnalyticsContext";
 import { OnboardingProvider } from "./context/OnboardingContext";
 import { UserProvider, useUser } from "./context/UserContext";
@@ -15,6 +16,14 @@ import TransactionsExplorer from "./pages/TransactionsExplorer";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import LandingPage from "./pages/LandingPage";
+import FinancialOnboarding from "./pages/FinancialOnboarding";
+import DashboardGeneration from "./pages/DashboardGeneration";
+import ProtectedRoute from "./components/ProtectedRoute";
+import OnboardingGuard from "./components/OnboardingGuard";
 import SearchOverlay from "./components/SearchOverlay";
 import NotificationToasts from "./components/NotificationToasts";
 import { getRouteMetadata } from "./utils/navigationConfig";
@@ -39,12 +48,12 @@ function RouteObserver() {
       setTimeout(() => setProgressWidth(0), 120);
     }, 350);
 
-    // Update document title reactively from navigation metadata to Artho Pro
+    // Update document title reactively from navigation metadata
     const metadata = getRouteMetadata(location.pathname);
     if (metadata) {
-      document.title = `${metadata.title} | Artho Pro`;
+      document.title = `${metadata.title} | Artho`;
     } else {
-      document.title = "Artho Pro | Premium Fintech SaaS";
+      document.title = "Artho — Financial Intelligence Platform";
     }
 
     return () => {
@@ -105,44 +114,82 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <AnalyticsProvider>
-        <UserProvider>
-          <NotificationProvider>
-            <OnboardingProvider>
-              
-              {/* Top progress loader indicator */}
-              <RouteObserver />
+      <AuthProvider>
+        <AnalyticsProvider>
+          <UserProvider>
+            <NotificationProvider>
+              <OnboardingProvider>
+                
+                {/* Top progress loader indicator */}
+                <RouteObserver />
 
-              {/* Toast notifications overlay popup portal */}
-              <NotificationToasts />
+                {/* Toast notifications overlay popup portal */}
+                <NotificationToasts />
 
-              {/* Custom Search Command Overlay Modal */}
-              <SearchOverlay isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+                {/* Custom Search Command Overlay Modal */}
+                <SearchOverlay isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
 
-              <LayoutWrapper>
                 <Routes>
-                  {/* Standard Redirections */}
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  {/* ═══════ PUBLIC PAGES ═══════ */}
+                  {/* Landing page is the root — first thing users see */}
+                  <Route path="/" element={<LandingPage />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<Signup />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
 
-                  {/* SaaS Route Register */}
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/portfolio" element={<PortfolioOverview />} />
-                  <Route path="/transactions" element={<TransactionsExplorer />} />
-                  <Route path="/analytics" element={<AnalyticsPage />} />
-                  <Route path="/investment-estimator" element={<InvestmentEstimator />} />
-                  <Route path="/debt-management" element={<DebtManagement />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/profile" element={<Profile />} />
+                  {/* ═══════ AUTH-PROTECTED FULL-SCREEN PAGES ═══════ */}
+                  {/* Onboarding and generation render WITHOUT sidebar/navbar */}
+                  <Route
+                    path="/onboarding"
+                    element={
+                      <ProtectedRoute>
+                        <FinancialOnboarding />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/generating"
+                    element={
+                      <ProtectedRoute>
+                        <DashboardGeneration />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                  {/* Fallback to Dashboard */}
-                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                  {/* ═══════ PROTECTED DASHBOARD ECOSYSTEM ═══════ */}
+                  {/* Requires BOTH authentication AND completed onboarding */}
+                  <Route 
+                    path="/*" 
+                    element={
+                      <ProtectedRoute>
+                        <OnboardingGuard>
+                          <LayoutWrapper>
+                            <Routes>
+                              {/* Default dashboard redirect */}
+                              <Route path="/dashboard" element={<Dashboard />} />
+                              <Route path="/portfolio" element={<PortfolioOverview />} />
+                              <Route path="/transactions" element={<TransactionsExplorer />} />
+                              <Route path="/analytics" element={<AnalyticsPage />} />
+                              <Route path="/investment-estimator" element={<InvestmentEstimator />} />
+                              <Route path="/debt-management" element={<DebtManagement />} />
+                              <Route path="/settings" element={<Settings />} />
+                              <Route path="/profile" element={<Profile />} />
+
+                              {/* Fallback to Dashboard */}
+                              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                            </Routes>
+                          </LayoutWrapper>
+                        </OnboardingGuard>
+                      </ProtectedRoute>
+                    } 
+                  />
                 </Routes>
-              </LayoutWrapper>
 
-            </OnboardingProvider>
-          </NotificationProvider>
-        </UserProvider>
-      </AnalyticsProvider>
+              </OnboardingProvider>
+            </NotificationProvider>
+          </UserProvider>
+        </AnalyticsProvider>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

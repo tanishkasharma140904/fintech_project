@@ -1,8 +1,10 @@
 import { useUser } from "../context/UserContext";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 export default function Profile() {
   const { user, appearance, resetUser } = useUser();
+  const { logout } = useAuth();
   const navigate = useNavigate();
 
   // Extract initials dynamically
@@ -80,6 +82,19 @@ export default function Profile() {
             className="px-4 py-2 rounded-lg text-xs font-bold transition-all border border-red-950 text-red-400 bg-red-950 bg-opacity-20 hover:bg-opacity-30"
           >
             Reset Profile
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                await logout();
+                navigate("/login");
+              } catch (err) {
+                console.error("Profile logout failed:", err);
+              }
+            }}
+            className="px-4 py-2 rounded-lg text-xs font-bold transition-all border border-red-800 text-red-400 bg-red-950 bg-opacity-40 hover:bg-opacity-50"
+          >
+            Sign Out
           </button>
         </div>
       </section>

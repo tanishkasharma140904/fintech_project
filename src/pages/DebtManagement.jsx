@@ -5,6 +5,8 @@ import {
   BarChart, Bar, LineChart, Line,
 } from "recharts";
 import { useAnalytics } from "../context/AnalyticsContext";
+import { useAuth } from "../context/AuthContext";
+import { useUser } from "../context/UserContext";
 import useDebtAnalyzer from "../hooks/useDebtAnalyzer";
 import { DEBT_PRESETS, DEBT_PRESET_LIST, calculateEMI, formatINR, formatINRFull } from "../utils/debtCalculators";
 
@@ -94,59 +96,71 @@ function LegendDot({ color, label }) {
 
 export default function DebtManagement() {
   const { analytics } = useAnalytics();
+  const { currentUser } = useAuth();
+  const { user } = useUser();
   const summary = analytics?.summary;
 
-  /* ── Profile ── */
-  const [profile, setProfile] = useState(() => {
-    try {
-      const saved = localStorage.getItem("fintech_debt_profile");
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return { monthlyIncome: 0, monthlyExpenses: 0, currentSavings: 0 };
-  });
+  const [profile, setProfile] = useState({ monthlyIncome: 0, monthlyExpenses: 0, currentSavings: 0 });
   const [profileEditing, setProfileEditing] = useState({});
+  const [debts, setDebts] = useState([makeDebt("home")]);
+  const [activeStrategy, setActiveStrategy] = useState("avalanche");
+  const [extraPayment, setExtraPayment] = useState(0);
+  const [showResults, setShowResults] = useState(false);
 
+  // Load from localStorage when currentUser is resolved
   useEffect(() => {
-    if (summary) {
-      const months = Math.max(1, analytics?.by_month?.length || 1);
-      // Auto-fill from analytics ONLY if we don't have manually saved profile inputs in localStorage
-      const hasSaved = localStorage.getItem("fintech_debt_profile");
-      if (!hasSaved) {
-        setProfile(prev => ({
-          monthlyIncome: summary.total_income > 0 ? Math.round(summary.total_income / months) : prev.monthlyIncome,
-          monthlyExpenses: summary.avg_monthly_spending || prev.monthlyExpenses,
-          currentSavings: Math.max(0, summary.net_savings) || prev.currentSavings,
-        }));
-      }
-    }
-  }, [summary, analytics?.by_month?.length]);
-
-  /* ── Debts ── */
-  const [debts, setDebts] = useState(() => {
+    const uid = currentUser?.uid || "guest";
     try {
-      const saved = localStorage.getItem("fintech_debt_list");
-      if (saved) {
-        const parsed = JSON.parse(saved);
+      const savedProfile = localStorage.getItem(`fintech_debt_profile_${uid}`);
+      if (savedProfile) {
+        const parsed = JSON.parse(savedProfile);
+        parsed.monthlyIncome = user?.effectiveIncome || user?.monthlyIncome || parsed.monthlyIncome || 0;
+        setProfile(parsed);
+      } else {
+        setProfile({ 
+          monthlyIncome: user?.effectiveIncome || user?.monthlyIncome || 0, 
+          monthlyExpenses: 0, 
+          currentSavings: 0 
+        });
+      }
+
+      const savedList = localStorage.getItem(`fintech_debt_list_${uid}`);
+      if (savedList) {
+        const parsed = JSON.parse(savedList);
         if (parsed.length > 0) {
-          // Adjust nextDebtId to be higher than any loaded debt ID
           const maxId = Math.max(...parsed.map(d => d.id));
           nextDebtId = maxId + 1;
-          return parsed;
+          setDebts(parsed);
+        } else {
+          setDebts([makeDebt("home")]);
         }
+      } else {
+        setDebts([makeDebt("home")]);
       }
-    } catch (e) {}
-    return [makeDebt("home")];
-  });
-  const [activeStrategy, setActiveStrategy] = useState(() => {
-    return localStorage.getItem("fintech_debt_strategy") || "avalanche";
-  });
-  const [extraPayment, setExtraPayment] = useState(() => {
-    const saved = localStorage.getItem("fintech_debt_extra_payment");
-    return saved ? parseInt(saved) || 0 : 0;
-  });
-  const [showResults, setShowResults] = useState(() => {
-    return localStorage.getItem("fintech_debt_show_results") === "true";
-  });
+
+      const savedStrategy = localStorage.getItem(`fintech_debt_strategy_${uid}`);
+      setActiveStrategy(savedStrategy || "avalanche");
+
+      const savedExtra = localStorage.getItem(`fintech_debt_extra_payment_${uid}`);
+      setExtraPayment(savedExtra ? parseInt(savedExtra) || 0 : 0);
+
+      const savedShow = localStorage.getItem(`fintech_debt_show_results_${uid}`);
+      setShowResults(savedShow === "true");
+    } catch (e) {
+      console.error("Error loading debt state from localStorage:", e);
+    }
+  }, [currentUser, user]);
+
+  // Dynamic self-healing auto-fill from CSV analytics when it becomes available
+  useEffect(() => {
+    if (summary && profile.monthlyIncome === 0 && profile.monthlyExpenses === 0) {
+      setProfile({
+        monthlyIncome: user?.effectiveIncome || user?.monthlyIncome || 0,
+        monthlyExpenses: Math.round(summary.avg_monthly_spending) || 0,
+        currentSavings: Math.max(0, Math.round(summary.net_savings)) || 0,
+      });
+    }
+  }, [summary, user, profile.monthlyIncome, profile.monthlyExpenses]);
 
   const addDebt = () => setDebts(prev => [...prev, makeDebt("personal")]);
   const removeDebt = (id) => { setDebts(prev => prev.filter(d => d.id !== id)); setShowResults(false); };
@@ -175,12 +189,13 @@ export default function DebtManagement() {
 
   // Sync to localStorage
   useEffect(() => {
+    const uid = currentUser?.uid || "guest";
     try {
-      localStorage.setItem("fintech_debt_list", JSON.stringify(debts));
-      localStorage.setItem("fintech_debt_profile", JSON.stringify(profile));
-      localStorage.setItem("fintech_debt_strategy", activeStrategy);
-      localStorage.setItem("fintech_debt_extra_payment", extraPayment.toString());
-      localStorage.setItem("fintech_debt_show_results", showResults ? "true" : "false");
+      localStorage.setItem(`fintech_debt_list_${uid}`, JSON.stringify(debts));
+      localStorage.setItem(`fintech_debt_profile_${uid}`, JSON.stringify(profile));
+      localStorage.setItem(`fintech_debt_strategy_${uid}`, activeStrategy);
+      localStorage.setItem(`fintech_debt_extra_payment_${uid}`, extraPayment.toString());
+      localStorage.setItem(`fintech_debt_show_results_${uid}`, showResults ? "true" : "false");
 
       if (showResults && result.ready) {
         const activeDebtsData = {
@@ -193,12 +208,12 @@ export default function DebtManagement() {
           debts: debts,
           ready: true,
         };
-        localStorage.setItem("fintech_active_debts", JSON.stringify(activeDebtsData));
+        localStorage.setItem(`fintech_active_debts_${uid}`, JSON.stringify(activeDebtsData));
       }
     } catch (e) {
       console.error("Error saving debt state to localStorage:", e);
     }
-  }, [debts, profile, activeStrategy, extraPayment, showResults, result]);
+  }, [debts, profile, activeStrategy, extraPayment, showResults, result, currentUser]);
   const healthScore = analytics?.dashboard_cards?.financial_health?.value;
   const activePlan = result.ready ? result.strategies[activeStrategy] : null;
 

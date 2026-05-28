@@ -1,5 +1,6 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { useUser } from "../context/UserContext";
+import { useAuth } from "../context/AuthContext";
 
 const NAV_ITEMS = [
   {
@@ -84,6 +85,8 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const { user } = useUser();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
 
   // Extract initials dynamically
   const initials = user?.fullName
@@ -105,8 +108,9 @@ export default function Sidebar() {
     >
       {/* Logo Area */}
       <div
-        className="flex items-center gap-3 px-6 py-5"
+        className="flex items-center gap-3 px-6 py-5 cursor-pointer hover:opacity-80 transition-opacity"
         style={{ borderBottom: "1px solid var(--bg-border)" }}
+        onClick={() => navigate("/dashboard")}
       >
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -199,10 +203,26 @@ export default function Sidebar() {
             {user?.completed ? (user.riskAppetite ? `${user.riskAppetite.charAt(0).toUpperCase() + user.riskAppetite.slice(1)} Risk` : "Pro Plan") : "Onboarding Stage"}
           </p>
         </div>
-        <span
-          className="ml-auto w-2 h-2 rounded-full flex-shrink-0"
-          style={{ background: "#10d078", boxShadow: "0 0 6px #10d078" }}
-        />
+        <button
+          onClick={async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            try {
+              await logout();
+              navigate("/login");
+            } catch (err) {
+              console.error("Sidebar logout failed:", err);
+            }
+          }}
+          className="ml-auto p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-950/20 border border-transparent hover:border-red-900/30 transition-all flex-shrink-0"
+          title="Sign Out"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+        </button>
       </NavLink>
     </aside>
   );

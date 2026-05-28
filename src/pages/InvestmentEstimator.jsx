@@ -5,6 +5,8 @@ import {
   BarChart, Bar,
 } from "recharts";
 import { useAnalytics } from "../context/AnalyticsContext";
+import { useAuth } from "../context/AuthContext";
+import { useUser } from "../context/UserContext";
 import useInvestmentCalculator from "../hooks/useInvestmentCalculator";
 import { INVESTMENT_PRESETS, formatINR, formatINRFull } from "../utils/financeCalculators";
 
@@ -63,53 +65,74 @@ const ANIM_CSS = `
 
 export default function InvestmentEstimator() {
   const { analytics } = useAnalytics();
+  const { currentUser } = useAuth();
+  const { user } = useUser();
   const summary = analytics?.summary;
 
-  const [profile, setProfile] = useState(() => {
-    try {
-      const saved = localStorage.getItem("fintech_estimator_profile");
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return { monthlyIncome: 0, monthlyExpenses: 0, currentSavings: 0, emergencyReserve: 0 };
-  });
+  const [profile, setProfile] = useState({ monthlyIncome: 0, monthlyExpenses: 0, currentSavings: 0, emergencyReserve: 0 });
   const [profileEditing, setProfileEditing] = useState({});
+  const [selectedType, setSelectedType] = useState("house");
+  const [form, setForm] = useState({
+    totalCost: INVESTMENT_PRESETS.house.defaultCost,
+    downPayment: Math.round(INVESTMENT_PRESETS.house.defaultCost * INVESTMENT_PRESETS.house.defaultDownPct / 100),
+    interestRate: INVESTMENT_PRESETS.house.defaultRate,
+    loanYears: INVESTMENT_PRESETS.house.defaultYears,
+    existingEMIs: 0,
+  });
+  const [showResults, setShowResults] = useState(false);
 
+  // Load from localStorage dynamically when currentUser is resolved
   useEffect(() => {
-    if (summary) {
-      const months = Math.max(1, analytics?.by_month?.length || 1);
-      // Auto-fill from analytics ONLY if we don't have manually saved profile inputs in localStorage
-      const hasSaved = localStorage.getItem("fintech_estimator_profile");
-      if (!hasSaved) {
-        setProfile(prev => ({
-          monthlyIncome: summary.total_income > 0 ? Math.round(summary.total_income / months) : prev.monthlyIncome,
-          monthlyExpenses: summary.avg_monthly_spending || prev.monthlyExpenses,
-          currentSavings: Math.max(0, summary.net_savings) || prev.currentSavings,
-          emergencyReserve: Math.round((summary.avg_monthly_spending || 0) * 3),
-        }));
-      }
-    }
-  }, [summary, analytics?.by_month?.length]);
-
-  const [selectedType, setSelectedType] = useState(() => {
-    return localStorage.getItem("fintech_estimator_selected_type") || "house";
-  });
-
-  const [form, setForm] = useState(() => {
+    const uid = currentUser?.uid || "guest";
     try {
-      const saved = localStorage.getItem("fintech_estimator_form");
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return {
-      totalCost: INVESTMENT_PRESETS.house.defaultCost,
-      downPayment: Math.round(INVESTMENT_PRESETS.house.defaultCost * INVESTMENT_PRESETS.house.defaultDownPct / 100),
-      interestRate: INVESTMENT_PRESETS.house.defaultRate,
-      loanYears: INVESTMENT_PRESETS.house.defaultYears,
-      existingEMIs: 0,
-    };
-  });
-  const [showResults, setShowResults] = useState(() => {
-    return localStorage.getItem("fintech_estimator_show_results") === "true";
-  });
+      const savedProfile = localStorage.getItem(`fintech_estimator_profile_${uid}`);
+      if (savedProfile) {
+        const parsed = JSON.parse(savedProfile);
+        parsed.monthlyIncome = user?.effectiveIncome || user?.monthlyIncome || parsed.monthlyIncome || 0;
+        setProfile(parsed);
+      } else {
+        setProfile({ 
+          monthlyIncome: user?.effectiveIncome || user?.monthlyIncome || 0, 
+          monthlyExpenses: 0, 
+          currentSavings: 0, 
+          emergencyReserve: 0 
+        });
+      }
+
+      const savedType = localStorage.getItem(`fintech_estimator_selected_type_${uid}`);
+      setSelectedType(savedType || "house");
+
+      const savedForm = localStorage.getItem(`fintech_estimator_form_${uid}`);
+      if (savedForm) {
+        setForm(JSON.parse(savedForm));
+      } else {
+        setForm({
+          totalCost: INVESTMENT_PRESETS.house.defaultCost,
+          downPayment: Math.round(INVESTMENT_PRESETS.house.defaultCost * INVESTMENT_PRESETS.house.defaultDownPct / 100),
+          interestRate: INVESTMENT_PRESETS.house.defaultRate,
+          loanYears: INVESTMENT_PRESETS.house.defaultYears,
+          existingEMIs: 0,
+        });
+      }
+
+      const savedShow = localStorage.getItem(`fintech_estimator_show_results_${uid}`);
+      setShowResults(savedShow === "true");
+    } catch (e) {
+      console.error("Error loading estimator state from localStorage:", e);
+    }
+  }, [currentUser, user]);
+
+  // Dynamic self-healing auto-fill from CSV analytics when it becomes available
+  useEffect(() => {
+    if (summary && profile.monthlyIncome === 0 && profile.monthlyExpenses === 0) {
+      setProfile({
+        monthlyIncome: user?.effectiveIncome || user?.monthlyIncome || 0,
+        monthlyExpenses: Math.round(summary.avg_monthly_spending) || 0,
+        currentSavings: Math.max(0, Math.round(summary.net_savings)) || 0,
+        emergencyReserve: Math.round((summary.avg_monthly_spending || 0) * 3),
+      });
+    }
+  }, [summary, analytics?.by_month?.length, profile.monthlyIncome, profile.monthlyExpenses]);
 
   const handleTypeChange = useCallback((typeId) => {
     setSelectedType(typeId);
@@ -131,11 +154,12 @@ export default function InvestmentEstimator() {
 
   // Sync to localStorage
   useEffect(() => {
+    const uid = currentUser?.uid || "guest";
     try {
-      localStorage.setItem("fintech_estimator_form", JSON.stringify(form));
-      localStorage.setItem("fintech_estimator_profile", JSON.stringify(profile));
-      localStorage.setItem("fintech_estimator_selected_type", selectedType);
-      localStorage.setItem("fintech_estimator_show_results", showResults ? "true" : "false");
+      localStorage.setItem(`fintech_estimator_form_${uid}`, JSON.stringify(form));
+      localStorage.setItem(`fintech_estimator_profile_${uid}`, JSON.stringify(profile));
+      localStorage.setItem(`fintech_estimator_selected_type_${uid}`, selectedType);
+      localStorage.setItem(`fintech_estimator_show_results_${uid}`, showResults ? "true" : "false");
 
       if (showResults && result.ready) {
         const activeInvestmentData = {
@@ -156,12 +180,12 @@ export default function InvestmentEstimator() {
           recommendations: result.recommendations,
           ready: true,
         };
-        localStorage.setItem("fintech_active_investment", JSON.stringify(activeInvestmentData));
+        localStorage.setItem(`fintech_active_investment_${uid}`, JSON.stringify(activeInvestmentData));
       }
     } catch (e) {
-      console.error("Error persisting Investment Estimator state:", e);
+      console.error("Error persisting Investment Estimator state to localStorage:", e);
     }
-  }, [form, profile, selectedType, showResults, result]);
+  }, [form, profile, selectedType, showResults, result, currentUser]);
   const healthScore = analytics?.dashboard_cards?.financial_health?.value;
 
   return (

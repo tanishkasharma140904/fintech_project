@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useAnalytics } from "../context/AnalyticsContext";
 import { formatINR, formatINRFull } from "../utils/financeCalculators";
 
@@ -465,8 +466,8 @@ export default function TransactionsExplorer() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 pt-3">
-              <a
-                href="/"
+              <Link
+                to="/dashboard"
                 className="px-6 py-2.5 rounded-lg text-xs font-bold text-gray-950 no-underline shadow-lg"
                 style={{
                   background: "linear-gradient(135deg, var(--accent-primary), #00b894)",
@@ -474,7 +475,7 @@ export default function TransactionsExplorer() {
                 }}
               >
                 Go to Dashboard to Upload CSV
-              </a>
+              </Link>
               <button
                 onClick={() => setUseSandbox(true)}
                 className="px-6 py-2.5 rounded-lg text-xs font-bold transition-all border"
