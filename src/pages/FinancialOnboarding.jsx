@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useOnboarding } from "../context/OnboardingContext";
+import { useNotifications } from "../context/NotificationContext";
 
 const EMPLOYMENT_TYPES = [
   { id: "salaried", label: "Salaried Professional", emoji: "👔", desc: "Steady monthly paycheck" },
@@ -66,6 +67,7 @@ const ANIM_CSS = `
 export default function FinancialOnboarding() {
   const navigate = useNavigate();
   const { completeOnboarding } = useOnboarding();
+  const { addNotification } = useNotifications();
   const [step, setStep] = useState(1);
 
   // Form State
@@ -177,6 +179,12 @@ export default function FinancialOnboarding() {
         monthlySavingsGoal: parseFloat(formData.monthlySavingsGoal),
         approxDebtBalance: formData.hasLoans === "yes" ? parseFloat(formData.approxDebtBalance) : 0,
         completedAt: new Date().toISOString(),
+      });
+      addNotification({
+        title: "Onboarding Completed",
+        description: `Your wealth identity has been mapped with a risk profile of "${formData.riskAppetite || "moderate"}".`,
+        category: "Account",
+        priority: "medium",
       });
       // Redirect to the dashboard generation "magic moment" screen
       navigate("/generating", { replace: true });

@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useNotifications } from "../context/NotificationContext";
 
 export default function Signup() {
   const navigate = useNavigate();
   const { signup, isDemoMode } = useAuth();
+  const { addNotification } = useNotifications();
   
   // Form State
   const [fullName, setFullName] = useState("");
@@ -42,6 +44,12 @@ export default function Signup() {
     setLoading(true);
     try {
       await signup(email, password, fullName);
+      addNotification({
+        title: "Welcome to Artho!",
+        description: `Your premium SaaS profile has been successfully created. Welcome aboard, ${fullName || "User"}!`,
+        category: "Account",
+        priority: "high",
+      });
       navigate("/dashboard");
     } catch (err) {
       console.error("Signup error:", err);

@@ -9,6 +9,7 @@ import { useAuth } from "../context/AuthContext";
 import { useUser } from "../context/UserContext";
 import useDebtAnalyzer from "../hooks/useDebtAnalyzer";
 import { DEBT_PRESETS, DEBT_PRESET_LIST, calculateEMI, formatINR, formatINRFull } from "../utils/debtCalculators";
+import { useNotifications } from "../context/NotificationContext";
 
 const ANIM = `
 @keyframes fadeSlideIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
@@ -98,6 +99,7 @@ export default function DebtManagement() {
   const { analytics } = useAnalytics();
   const { currentUser } = useAuth();
   const { user } = useUser();
+  const { addNotification } = useNotifications();
   const summary = analytics?.summary;
 
   const [profile, setProfile] = useState({ monthlyIncome: 0, monthlyExpenses: 0, currentSavings: 0 });
@@ -214,6 +216,38 @@ export default function DebtManagement() {
       console.error("Error saving debt state to localStorage:", e);
     }
   }, [debts, profile, activeStrategy, extraPayment, showResults, result, currentUser]);
+
+  // Trigger notifications on successful debt analysis
+  useEffect(() => {
+    if (showResults && result.ready) {
+      // 1. debt strategy generated
+      addNotification({
+        title: "Debt Payoff Strategy Generated",
+        description: `Your custom ${activeStrategy.charAt(0).toUpperCase() + activeStrategy.slice(1)} payoff roadmap is active. Estimated payoff in ${Math.ceil(activePlan?.debtFreeMonth / 12 || 0)} years.`,
+        category: "Debt",
+        priority: "medium",
+      });
+
+      // 2. repayment milestone achieved
+      if (extraPayment > 0) {
+        addNotification({
+          title: "Repayment Milestone Achieved",
+          description: `Adding extra monthly prepayments of ${formatINR(extraPayment)} accelerates your debt-free timeline by ${result.strategies[activeStrategy]?.monthsSaved || 6} months!`,
+          category: "Debt",
+          priority: "high",
+        });
+      }
+
+      // 3. debt risk changed
+      addNotification({
+        title: "Debt Stress Risk Index Checked",
+        description: `Global debt stress levels parsed. DTI ratio is ${result.metrics.dti}% and stability status is: "${result.metrics.riskStatus}".`,
+        category: "Debt",
+        priority: result.metrics.dti > 40 ? "high" : "medium",
+      });
+    }
+  }, [showResults, result.ready, activeStrategy, extraPayment, result.metrics.dti, result.metrics.riskStatus, activePlan?.debtFreeMonth, addNotification]);
+
   const healthScore = analytics?.dashboard_cards?.financial_health?.value;
   const activePlan = result.ready ? result.strategies[activeStrategy] : null;
 

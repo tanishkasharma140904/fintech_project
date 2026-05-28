@@ -10,12 +10,12 @@ import { useNotifications } from "../context/NotificationContext";
 import { getRouteMetadata } from "../utils/navigationConfig";
 
 const CATEGORY_ICONS = {
+  SplitUp: { emoji: "🔀", color: "var(--accent-primary)" },
   Analytics: { emoji: "📈", color: "#10d078" },
   Investment: { emoji: "🎯", color: "#c084fc" },
   Debt: { emoji: "💸", color: "#ff4d6a" },
-  Security: { emoji: "🛡️", color: "#ff4d6a" },
+  Account: { emoji: "👤", color: "#4d9fff" },
   System: { emoji: "⚙️", color: "#00d4aa" },
-  Transactions: { emoji: "💳", color: "#f5a623" },
 };
 
 export default function Navbar() {
@@ -48,9 +48,9 @@ export default function Navbar() {
   // Filter logic
   const filteredNotifications = notifications.filter((n) => {
     if (activeFilter === "all") return true;
-    if (activeFilter === "alerts") return n.category === "Debt" || n.category === "Security" || n.priority === "high";
-    if (activeFilter === "tx") return n.category === "Transactions";
-    if (activeFilter === "system") return n.category === "System" || n.category === "Analytics";
+    if (activeFilter === "alerts") return n.category === "Debt" || n.category === "Account" || n.priority === "high";
+    if (activeFilter === "tx") return n.category === "SplitUp";
+    if (activeFilter === "system") return n.category === "System" || n.category === "Analytics" || n.category === "Investment";
     return true;
   });
 

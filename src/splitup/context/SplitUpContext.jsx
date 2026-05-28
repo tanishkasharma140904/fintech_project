@@ -135,11 +135,25 @@ export function SplitUpProvider({ children }) {
 
   const editExpense = useCallback(async (groupId, expenseId, updates) => {
     await firestore.editExpense(groupId, expenseId, updates);
-  }, [firestore]);
+    const groupName = groups.find(g => g.id === groupId)?.name || 'group';
+    addNotification({
+      title: 'Balance Updated',
+      description: `Expense edited in "${groupName}". Group balances updated.`,
+      category: 'SplitUp',
+      priority: 'low',
+    });
+  }, [firestore, groups, addNotification]);
 
   const deleteExpense = useCallback(async (groupId, expenseId) => {
+    const groupName = groups.find(g => g.id === groupId)?.name || 'group';
     await firestore.deleteExpense(groupId, expenseId);
-  }, [firestore]);
+    addNotification({
+      title: 'Balance Updated',
+      description: `Expense deleted from "${groupName}". Group balances updated.`,
+      category: 'SplitUp',
+      priority: 'low',
+    });
+  }, [firestore, groups, addNotification]);
 
   const settleBalance = useCallback(async (groupId, settlementData) => {
     const settlementId = await firestore.settleBalance(groupId, settlementData);

@@ -9,6 +9,7 @@ import { useAuth } from "../context/AuthContext";
 import { useUser } from "../context/UserContext";
 import useInvestmentCalculator from "../hooks/useInvestmentCalculator";
 import { INVESTMENT_PRESETS, formatINR, formatINRFull } from "../utils/financeCalculators";
+import { useNotifications } from "../context/NotificationContext";
 
 const PRESET_LIST = Object.values(INVESTMENT_PRESETS);
 
@@ -67,6 +68,7 @@ export default function InvestmentEstimator() {
   const { analytics } = useAnalytics();
   const { currentUser } = useAuth();
   const { user } = useUser();
+  const { addNotification } = useNotifications();
   const summary = analytics?.summary;
 
   const [profile, setProfile] = useState({ monthlyIncome: 0, monthlyExpenses: 0, currentSavings: 0, emergencyReserve: 0 });
@@ -186,6 +188,38 @@ export default function InvestmentEstimator() {
       console.error("Error persisting Investment Estimator state to localStorage:", e);
     }
   }, [form, profile, selectedType, showResults, result, currentUser]);
+
+  // Trigger notifications on successful analysis
+  useEffect(() => {
+    if (showResults && result.ready) {
+      // 1. Affordability analysis generated
+      addNotification({
+        title: "Affordability Analysis Generated",
+        description: `Feasibility score is ${result.metrics.feasibilityScore}/100 for your "${INVESTMENT_PRESETS[selectedType]?.label || "Investment"}" plan.`,
+        category: "Investment",
+        priority: "medium",
+      });
+
+      // 2. EMI calculation completed
+      addNotification({
+        title: "EMI Calculation Completed",
+        description: `Your computed monthly payment for this investment is ${formatINRFull(result.metrics.emi)}.`,
+        category: "Investment",
+        priority: "low",
+      });
+
+      // 3. Budget risk warning triggered (if feasibility score < 50 or DTI > 36 or negative remaining savings)
+      if (result.metrics.feasibilityScore < 50 || result.metrics.dti > 36 || result.metrics.remainingSavings <= 0) {
+        addNotification({
+          title: "Budget Risk Warning Triggered",
+          description: `High risk indicators flagged. DTI ratio is ${result.metrics.dti}% and feasibility is ${result.metrics.feasibilityStatus}.`,
+          category: "Investment",
+          priority: "high",
+        });
+      }
+    }
+  }, [showResults, result.ready, selectedType, result.metrics.feasibilityScore, result.metrics.emi, result.metrics.dti, result.metrics.remainingSavings, result.metrics.feasibilityStatus, addNotification]);
+
   const healthScore = analytics?.dashboard_cards?.financial_health?.value;
 
   return (

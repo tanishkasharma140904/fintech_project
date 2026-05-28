@@ -203,9 +203,9 @@ export default function Settings() {
                   value={user?.fullName || ""}
                   onChange={e => updateProfile({ fullName: e.target.value })}
                   onBlur={() => addNotification({
-                    title: "Security: Identity Updated",
+                    title: "Profile Updated",
                     description: `Your full name has been securely modified inside your profile.`,
-                    category: "Security",
+                    category: "Account",
                     priority: "low",
                   })}
                   className="w-full px-3 py-2 rounded-lg text-xs outline-none"
@@ -220,9 +220,9 @@ export default function Settings() {
                   value={user?.occupation || ""}
                   onChange={e => updateProfile({ occupation: e.target.value })}
                   onBlur={() => addNotification({
-                    title: "SaaS Identity Modified",
-                    description: `Occupational metadata updated to ${user?.occupation || "new role"}.`,
-                    category: "Security",
+                    title: "Profile Updated",
+                    description: `Occupational metadata updated successfully.`,
+                    category: "Account",
                     priority: "low",
                   })}
                   className="w-full px-3 py-2 rounded-lg text-xs outline-none"
@@ -237,9 +237,9 @@ export default function Settings() {
                   value={user?.cityCountry || ""}
                   onChange={e => updateProfile({ cityCountry: e.target.value })}
                   onBlur={() => addNotification({
-                    title: "Location Parameters Synced",
-                    description: "Your primary regional ledger node is synchronized successfully.",
-                    category: "System",
+                    title: "Profile Updated",
+                    description: `Location parameters synced to your profile.`,
+                    category: "Account",
                     priority: "low",
                   })}
                   className="w-full px-3 py-2 rounded-lg text-xs outline-none"
@@ -254,10 +254,10 @@ export default function Settings() {
                   value={user?.monthlyIncome || ""}
                   onChange={e => updateProfile({ monthlyIncome: parseFloat(e.target.value) || 0 })}
                   onBlur={() => addNotification({
-                    title: "Surplus Forecast Updated",
-                    description: "Estimated monthly cash-inflows and compound potentials have been recalculated.",
-                    category: "Analytics",
-                    priority: "medium",
+                    title: "Profile Updated",
+                    description: `Estimated monthly income updated inside your profile.`,
+                    category: "Account",
+                    priority: "low",
                   })}
                   className="w-full px-3 py-2 rounded-lg text-xs outline-none"
                   style={{ background: "var(--bg-elevated)", border: "1px solid var(--bg-border)", color: "var(--text-primary)" }}
@@ -273,10 +273,10 @@ export default function Settings() {
                   onChange={e => {
                     updateProfile({ riskAppetite: e.target.value });
                     addNotification({
-                      title: "Risk Parameters Shifted",
+                      title: "Preferences Updated",
                       description: `Active investment risk preferences altered to ${e.target.value}.`,
-                      category: "Investment",
-                      priority: "medium",
+                      category: "Account",
+                      priority: "low",
                     });
                   }}
                   className="w-full px-3 py-2 rounded-lg text-xs outline-none cursor-pointer"
@@ -318,7 +318,15 @@ export default function Settings() {
                   return (
                     <button
                       key={accent.id}
-                      onClick={() => updateAppearance({ accent: accent.hex })}
+                      onClick={() => {
+                        updateAppearance({ accent: accent.hex });
+                        addNotification({
+                          title: "Preferences Updated",
+                          description: `Brand accent highlights modified to ${accent.label}.`,
+                          category: "Account",
+                          priority: "low",
+                        });
+                      }}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-2"
                       style={{
                         background: active ? "var(--accent-glow)" : "var(--bg-elevated)",
@@ -343,7 +351,15 @@ export default function Settings() {
                   return (
                     <button
                       key={theme.id}
-                      onClick={() => updateAppearance({ theme: theme.id })}
+                      onClick={() => {
+                        updateAppearance({ theme: theme.id });
+                        addNotification({
+                          title: "Theme Changed",
+                          description: `SaaS root base layer theme altered to "${theme.label}" successfully.`,
+                          category: "Account",
+                          priority: "low",
+                        });
+                      }}
                       className="p-3.5 text-left rounded-xl border transition-all flex items-center gap-3 relative overflow-hidden"
                       style={{
                         background: theme.surface,
@@ -389,7 +405,15 @@ export default function Settings() {
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold text-gray-400">Compact Dashboard Mode</span>
                   <button
-                    onClick={() => updateAppearance({ compactMode: !appearance?.compactMode })}
+                    onClick={() => {
+                      updateAppearance({ compactMode: !appearance?.compactMode });
+                      addNotification({
+                        title: "Preferences Updated",
+                        description: `Compact mode turned ${!appearance?.compactMode ? "ON" : "OFF"}.`,
+                        category: "Account",
+                        priority: "low",
+                      });
+                    }}
                     className="w-9 h-5 rounded-full p-0.5 transition-colors duration-200 outline-none"
                     style={{ background: appearance?.compactMode ? "var(--accent-primary)" : "var(--bg-elevated)", border: "1px solid var(--bg-border)" }}
                   >
@@ -400,7 +424,15 @@ export default function Settings() {
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold text-gray-400">Reduced Motion Controls</span>
                   <button
-                    onClick={() => updateAppearance({ reducedMotion: !appearance?.reducedMotion })}
+                    onClick={() => {
+                      updateAppearance({ reducedMotion: !appearance?.reducedMotion });
+                      addNotification({
+                        title: "Preferences Updated",
+                        description: `Reduced motion turned ${!appearance?.reducedMotion ? "ON" : "OFF"}.`,
+                        category: "Account",
+                        priority: "low",
+                      });
+                    }}
                     className="w-9 h-5 rounded-full p-0.5 transition-colors duration-200 outline-none"
                     style={{ background: appearance?.reducedMotion ? "var(--accent-primary)" : "var(--bg-elevated)", border: "1px solid var(--bg-border)" }}
                   >

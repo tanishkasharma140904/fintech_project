@@ -2,12 +2,12 @@ import { useEffect } from "react";
 import { useNotifications } from "../context/NotificationContext";
 
 const CATEGORY_COLORS = {
+  SplitUp: { border: "var(--accent-primary)", glow: "rgba(0, 212, 170, 0.15)", emoji: "🔀" },
   Analytics: { border: "#10d078", glow: "rgba(16, 208, 120, 0.15)", emoji: "📈" },
   Investment: { border: "#c084fc", glow: "rgba(192, 132, 252, 0.15)", emoji: "🎯" },
   Debt: { border: "#ff4d6a", glow: "rgba(255, 77, 106, 0.15)", emoji: "💸" },
-  Security: { border: "#ff4d6a", glow: "rgba(255, 77, 106, 0.15)", emoji: "🛡️" },
+  Account: { border: "#4d9fff", glow: "rgba(77, 159, 255, 0.15)", emoji: "👤" },
   System: { border: "#00d4aa", glow: "rgba(0, 212, 170, 0.15)", emoji: "⚙️" },
-  Transactions: { border: "#f5a623", glow: "rgba(245, 166, 35, 0.15)", emoji: "💳" },
 };
 
 function ToastCard({ toast, onDismiss }) {
