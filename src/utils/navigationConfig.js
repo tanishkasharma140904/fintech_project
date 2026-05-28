@@ -68,6 +68,14 @@ export const NAVIGATION_ROUTES = [
     breadcrumbs: ["Home", "Profile"],
     iconName: "profile",
     description: "SaaS identity card, financial personality logs, and target goals",
+  },
+  {
+    path: "/splitup",
+    title: "SplitUp — Shared Expenses",
+    label: "SplitUp",
+    breadcrumbs: ["Home", "SplitUp"],
+    iconName: "splitup",
+    description: "Collaborative shared expense splitting and settlement system",
   }
 ];
 
@@ -106,6 +114,28 @@ export function getRouteMetadata(pathname) {
       breadcrumbs: [pageTitle],
       iconName: "",
       description: "",
+    };
+  }
+
+  // Dynamic SplitUp sub-routes
+  if (pathname.toLowerCase().startsWith('/splitup/group/')) {
+    return {
+      path: pathname,
+      title: "Group Details — SplitUp",
+      label: "Group Details",
+      breadcrumbs: ["Home", "SplitUp", "Group"],
+      iconName: "splitup",
+      description: "View and manage a shared expense group",
+    };
+  }
+  if (pathname.toLowerCase() === '/splitup/settlements') {
+    return {
+      path: pathname,
+      title: "Settlement Center — SplitUp",
+      label: "Settlements",
+      breadcrumbs: ["Home", "SplitUp", "Settlements"],
+      iconName: "splitup",
+      description: "Manage pending and completed settlements",
     };
   }
 

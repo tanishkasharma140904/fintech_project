@@ -6,6 +6,10 @@ import { AnalyticsProvider } from "./context/AnalyticsContext";
 import { OnboardingProvider } from "./context/OnboardingContext";
 import { UserProvider, useUser } from "./context/UserContext";
 import { NotificationProvider } from "./context/NotificationContext";
+import { SplitUpProvider } from "./splitup/context/SplitUpContext";
+import SplitUpDashboard from "./splitup/pages/SplitUpDashboard";
+import GroupDetailsPage from "./splitup/pages/GroupDetails";
+import SettlementPage from "./splitup/pages/SettlementPage";
 import Sidebar from "./components/Sidebar";
 import Navbar from "./components/Navbar";
 import Dashboard from "./components/Dashboard";
@@ -118,6 +122,7 @@ export default function App() {
         <AnalyticsProvider>
           <UserProvider>
             <NotificationProvider>
+              <SplitUpProvider>
               <OnboardingProvider>
                 
                 {/* Top progress loader indicator */}
@@ -172,6 +177,9 @@ export default function App() {
                               <Route path="/analytics" element={<AnalyticsPage />} />
                               <Route path="/investment-estimator" element={<InvestmentEstimator />} />
                               <Route path="/debt-management" element={<DebtManagement />} />
+                              <Route path="/splitup" element={<SplitUpDashboard />} />
+                              <Route path="/splitup/group/:groupId" element={<GroupDetailsPage />} />
+                              <Route path="/splitup/settlements" element={<SettlementPage />} />
                               <Route path="/settings" element={<Settings />} />
                               <Route path="/profile" element={<Profile />} />
 
@@ -186,6 +194,7 @@ export default function App() {
                 </Routes>
 
               </OnboardingProvider>
+              </SplitUpProvider>
             </NotificationProvider>
           </UserProvider>
         </AnalyticsProvider>

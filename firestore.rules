@@ -1,0 +1,68 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ══════════════════════════════════════════
+    // EXISTING ARTHO COLLECTIONS (unchanged)
+    // ══════════════════════════════════════════
+    
+    // Users collection — each user can only read/write their own document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Transactions subcollection
+      match /transactions/{transactionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // Allow authenticated users to query other users by email (for member lookup)
+    // This is read-only — users cannot modify other users' documents
+    match /users/{userId} {
+      allow read: if request.auth != null;
+    }
+    
+    // ══════════════════════════════════════════
+    // SPLITUP COLLECTIONS
+    // ══════════════════════════════════════════
+    
+    // SplitUp Groups — only members can read, only owner/admins can delete
+    match /splitup_groups/{groupId} {
+      
+      // Anyone authenticated can create a group
+      allow create: if request.auth != null;
+      
+      // Only group members can read the group
+      allow read: if request.auth != null 
+                  && request.auth.uid in resource.data.members;
+      
+      // Only group members can update (add expenses, members, etc.)
+      allow update: if request.auth != null 
+                    && request.auth.uid in resource.data.members;
+      
+      // Only the group owner can delete the group
+      allow delete: if request.auth != null 
+                    && resource.data.createdBy == request.auth.uid;
+      
+      // ── Expenses subcollection ──
+      match /expenses/{expenseId} {
+        // Members of the parent group can read/write expenses
+        allow read, write: if request.auth != null 
+                          && request.auth.uid in get(/databases/$(database)/documents/splitup_groups/$(groupId)).data.members;
+      }
+      
+      // ── Settlements subcollection ──
+      match /settlements/{settlementId} {
+        allow read, write: if request.auth != null 
+                          && request.auth.uid in get(/databases/$(database)/documents/splitup_groups/$(groupId)).data.members;
+      }
+      
+      // ── Activity subcollection ──
+      match /activity/{activityId} {
+        allow read, write: if request.auth != null 
+                          && request.auth.uid in get(/databases/$(database)/documents/splitup_groups/$(groupId)).data.members;
+      }
+    }
+  }
+}
