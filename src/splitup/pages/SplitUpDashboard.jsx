@@ -46,20 +46,22 @@ export default function SplitUpDashboard() {
     groups.forEach((group) => {
       totalSpent += group.totalExpense || 0;
 
-      // Compute balance from group data if available
-      // For now use simple member-based estimation
-      const expenses = group.expenses ? Object.values(group.expenses) : [];
-      const settlements = group.settlements ? Object.values(group.settlements) : [];
-
-      if (expenses.length > 0) {
-        const nets = getNetBalances(expenses, settlements);
-        const myBalance = nets[uid] || 0;
-        balancePerGroup[group.id] = myBalance;
-        if (myBalance > 0) totalOwed += myBalance;
-        if (myBalance < 0) totalOwe += Math.abs(myBalance);
+      // Use cached parent balances if available, with robust local fallback
+      let myBalance = 0;
+      if (group.balances && group.balances[uid] !== undefined) {
+        myBalance = group.balances[uid];
       } else {
-        balancePerGroup[group.id] = 0;
+        const expenses = group.expenses ? Object.values(group.expenses) : [];
+        const settlements = group.settlements ? Object.values(group.settlements) : [];
+        if (expenses.length > 0) {
+          const nets = getNetBalances(expenses, settlements);
+          myBalance = nets[uid] || 0;
+        }
       }
+
+      balancePerGroup[group.id] = myBalance;
+      if (myBalance > 0) totalOwed += myBalance;
+      if (myBalance < 0) totalOwe += Math.abs(myBalance);
     });
 
     return { totalOwed, totalOwe, totalSpent, netBalance: totalOwed - totalOwe, balancePerGroup };

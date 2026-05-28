@@ -41,13 +41,27 @@ export function SplitUpProvider({ children }) {
     }
 
     setLoading(true);
-    const unsubscribe = firestore.subscribeToGroups((groupsList) => {
+    const unsubscribe = firestore.subscribeToGroups(async (groupsList) => {
       setGroups(groupsList);
       setLoading(false);
+
+      // Self-healing migration for legacy groups missing parent balances map
+      if (groupsList && groupsList.length > 0) {
+        for (const group of groupsList) {
+          if (!group.balances || Object.keys(group.balances).length === 0) {
+            console.log('[SplitUp debug] Group is missing parent-level balances. Triggering self-healing recalculation for:', group.id);
+            try {
+              await firestore.recalculateGroupStats(group.id);
+            } catch (err) {
+              console.error('[SplitUp debug] Self-healing recalculation failed for group:', group.id, err);
+            }
+          }
+        }
+      }
     });
 
     return () => unsubscribe();
-  }, [uid, firestore.subscribeToGroups]);
+  }, [uid, firestore.subscribeToGroups, firestore.recalculateGroupStats]);
 
   // ── Subscribe to active group details (real-time) ──
   useEffect(() => {

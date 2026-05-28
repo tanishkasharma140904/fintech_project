@@ -13,6 +13,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
+import { getNetBalances } from '../utils/balanceEngine';
+
 
 // ── DEMO MODE HELPERS ──
 const DEMO_KEY = 'artho_splitup_data';
@@ -38,8 +40,45 @@ function generateId() {
   return 'su_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 6);
 }
 
+// ── RECALCULATION HELPERS ──
+
+async function recalculateGroupStats(groupId) {
+  try {
+    // 1. Fetch all expenses
+    const expSnap = await getDocs(collection(db, 'splitup_groups', groupId, 'expenses'));
+    const expenses = expSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // 2. Fetch all settlements
+    const setSnap = await getDocs(collection(db, 'splitup_groups', groupId, 'settlements'));
+    const settlements = setSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // 3. Compute stats
+    const total = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+    const balances = getNetBalances(expenses, settlements);
+
+    console.log('[SplitUp debug] recalculateGroupStats computed for:', groupId, { total, balances });
+
+    // 4. Write back to group
+    await updateDoc(doc(db, 'splitup_groups', groupId), {
+      totalExpense: total,
+      balances,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error('[SplitUp debug] Error recalculating group stats for:', groupId, err);
+  }
+}
+
+function recalculateGroupStatsDemo(group) {
+  const expenses = Object.values(group.expenses || {});
+  const settlements = Object.values(group.settlements || {});
+  group.totalExpense = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+  group.balances = getNetBalances(expenses, settlements);
+}
+
 // ── HOOK ──
 export function useSplitUpFirestore() {
+
   const { currentUser, isDemoMode } = useAuth();
   const uid = currentUser?.uid;
 
@@ -53,6 +92,12 @@ export function useSplitUpFirestore() {
     const groupId = generateId();
     const now = new Date().toISOString();
 
+    const groupMembers = [uid, ...(groupData.members || [])];
+    const initialBalances = {};
+    groupMembers.forEach((mId) => {
+      initialBalances[mId] = 0;
+    });
+
     const group = {
       id: groupId,
       name: groupData.name || 'Untitled Group',
@@ -60,7 +105,7 @@ export function useSplitUpFirestore() {
       type: groupData.type || 'custom',
       icon: groupData.icon || '👥',
       createdBy: uid,
-      members: [uid, ...(groupData.members || [])],
+      members: groupMembers,
       memberDetails: {
         [uid]: {
           name: currentUser.fullName || currentUser.displayName || currentUser.email || 'You',
@@ -70,6 +115,7 @@ export function useSplitUpFirestore() {
         },
         ...(groupData.memberDetails || {}),
       },
+      balances: initialBalances,
       totalExpense: 0,
       createdAt: now,
       updatedAt: now,
@@ -156,6 +202,9 @@ export function useSplitUpFirestore() {
 
   const lookupUserByEmail = useCallback(async (email) => {
     const normalizedEmail = email.toLowerCase().trim();
+    const originalEmail = email.trim();
+
+    console.log('[SplitUp debug] lookupUserByEmail initiated for:', email, { isDemoMode });
 
     if (isDemoMode) {
       // Check mock auth users
@@ -163,30 +212,48 @@ export function useSplitUpFirestore() {
         const mockUsersRaw = localStorage.getItem('artho_mock_auth_users');
         if (mockUsersRaw) {
           const mockUsers = JSON.parse(mockUsersRaw);
-          const found = mockUsers[normalizedEmail];
+          const found = mockUsers[normalizedEmail] || mockUsers[originalEmail];
           if (found) {
+            console.log('[SplitUp debug] lookupUserByEmail found mock user:', found);
             return { uid: found.uid, email: found.email, fullName: found.fullName };
           }
         }
-      } catch { /* ignore */ }
+      } catch (err) {
+        console.error('[SplitUp debug] Error reading mock auth users:', err);
+      }
+      console.log('[SplitUp debug] lookupUserByEmail mock user not found');
       return null;
     } else {
       // Query Firestore users collection by email
       try {
         const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('profile.email', '==', normalizedEmail));
-        const snap = await getDocs(q);
+        
+        // 1. Try querying by normalized (lowercase) email first
+        let q = query(usersRef, where('profile.email', '==', normalizedEmail));
+        let snap = await getDocs(q);
+        
+        // 2. If empty and original is different, try querying original input
+        if (snap.empty && originalEmail !== normalizedEmail) {
+          console.log('[SplitUp debug] Lowercase query empty. Trying original email casing:', originalEmail);
+          q = query(usersRef, where('profile.email', '==', originalEmail));
+          snap = await getDocs(q);
+        }
+
         if (!snap.empty) {
           const userDoc = snap.docs[0];
           const data = userDoc.data();
-          return {
+          const resolved = {
             uid: userDoc.id,
             email: data.profile?.email || normalizedEmail,
             fullName: data.profile?.fullName || 'User',
           };
+          console.log('[SplitUp debug] lookupUserByEmail resolved real Firebase user:', resolved);
+          return resolved;
+        } else {
+          console.log('[SplitUp debug] No real user document found matching email:', email);
         }
       } catch (e) {
-        console.error('Error looking up user by email:', e);
+        console.error('[SplitUp debug] Error looking up user by email in Firestore:', e);
       }
       return null;
     }
@@ -197,6 +264,13 @@ export function useSplitUpFirestore() {
 
     const { uid: memberUid, email: memberEmail, fullName: memberName } = memberInfo;
     const now = new Date().toISOString();
+
+    console.log('[SplitUp debug] addMember started:', { groupId, memberUid, memberEmail, memberName, currentUserUid: uid });
+
+    if (!memberUid) {
+      console.error('[SplitUp debug] Cannot add member: resolved member UID is empty/invalid.');
+      throw new Error('Invalid user ID: Cannot add member to group.');
+    }
 
     if (isDemoMode) {
       const data = getDemoData();
@@ -232,7 +306,14 @@ export function useSplitUpFirestore() {
       };
 
       saveDemoData(data);
+      console.log('[SplitUp debug] addMember complete in demo mode. New members array:', group.members);
     } else {
+      // Security Assertion in Live Firebase Mode: Ensure we don't write guest or empty identifiers
+      if (memberUid === 'guest' || memberUid.startsWith('mock_uid_')) {
+        console.error('[SplitUp debug] Security violation: Attempted to add guest/mock UID in real Firebase mode:', memberUid);
+        throw new Error('Unsupported action: Cannot add guest/mock profiles to active cloud database groups.');
+      }
+
       const groupRef = doc(db, 'splitup_groups', groupId);
       await updateDoc(groupRef, {
         members: arrayUnion(memberUid),
@@ -242,6 +323,7 @@ export function useSplitUpFirestore() {
           role: 'member',
           joinedAt: now,
         },
+        [`balances.${memberUid}`]: 0,
         updatedAt: serverTimestamp(),
       });
 
@@ -253,6 +335,8 @@ export function useSplitUpFirestore() {
         description: `was added to the group`,
         createdAt: serverTimestamp(),
       });
+
+      console.log('[SplitUp debug] addMember successfully executed to Firestore for user:', memberUid);
     }
   }, [uid, isDemoMode]);
 
@@ -269,6 +353,9 @@ export function useSplitUpFirestore() {
       const memberName = group.memberDetails[memberUid]?.name || 'Unknown';
       group.members = group.members.filter((id) => id !== memberUid);
       delete group.memberDetails[memberUid];
+      if (group.balances) {
+        delete group.balances[memberUid];
+      }
       group.updatedAt = now;
 
       if (data.userGroups[memberUid]) {
@@ -294,6 +381,7 @@ export function useSplitUpFirestore() {
       await updateDoc(groupRef, {
         members: arrayRemove(memberUid),
         [`memberDetails.${memberUid}`]: null,
+        [`balances.${memberUid}`]: null,
         updatedAt: serverTimestamp(),
       });
 
@@ -339,7 +427,7 @@ export function useSplitUpFirestore() {
       if (!group) throw new Error('Group not found');
 
       group.expenses[expenseId] = expense;
-      group.totalExpense = Object.values(group.expenses).reduce((s, e) => s + (e.amount || 0), 0);
+      recalculateGroupStatsDemo(group);
       group.updatedAt = now;
 
       const payerName = group.memberDetails[expense.paidBy]?.name || 'Someone';
@@ -363,16 +451,12 @@ export function useSplitUpFirestore() {
         updatedAt: serverTimestamp(),
       });
 
-      // Update group total
-      const groupRef = doc(db, 'splitup_groups', groupId);
-      const groupSnap = await getDoc(groupRef);
-      const currentTotal = groupSnap.data()?.totalExpense || 0;
-      await updateDoc(groupRef, {
-        totalExpense: currentTotal + expense.amount,
-        updatedAt: serverTimestamp(),
-      });
+      // Recalculate group stats
+      await recalculateGroupStats(groupId);
 
       // Activity
+      const groupRef = doc(db, 'splitup_groups', groupId);
+      const groupSnap = await getDoc(groupRef);
       const payerName = groupSnap.data()?.memberDetails?.[expense.paidBy]?.name || 'Someone';
       const actRef = doc(collection(db, 'splitup_groups', groupId, 'activity'));
       await setDoc(actRef, {
@@ -399,7 +483,7 @@ export function useSplitUpFirestore() {
       if (!group || !group.expenses[expenseId]) throw new Error('Expense not found');
 
       group.expenses[expenseId] = { ...group.expenses[expenseId], ...updates, updatedAt: now };
-      group.totalExpense = Object.values(group.expenses).reduce((s, e) => s + (e.amount || 0), 0);
+      recalculateGroupStatsDemo(group);
       group.updatedAt = now;
 
       const actId = generateId();
@@ -417,13 +501,8 @@ export function useSplitUpFirestore() {
       const expRef = doc(db, 'splitup_groups', groupId, 'expenses', expenseId);
       await updateDoc(expRef, { ...updates, updatedAt: serverTimestamp() });
 
-      // Recalculate total
-      const allExps = await getDocs(collection(db, 'splitup_groups', groupId, 'expenses'));
-      const total = allExps.docs.reduce((s, d) => s + (d.data().amount || 0), 0);
-      await updateDoc(doc(db, 'splitup_groups', groupId), {
-        totalExpense: total,
-        updatedAt: serverTimestamp(),
-      });
+      // Recalculate group stats
+      await recalculateGroupStats(groupId);
 
       const actRef = doc(collection(db, 'splitup_groups', groupId, 'activity'));
       const groupSnap = await getDoc(doc(db, 'splitup_groups', groupId));
@@ -450,7 +529,7 @@ export function useSplitUpFirestore() {
       const expense = group.expenses[expenseId];
       const expName = expense?.description || 'an expense';
       delete group.expenses[expenseId];
-      group.totalExpense = Object.values(group.expenses).reduce((s, e) => s + (e.amount || 0), 0);
+      recalculateGroupStatsDemo(group);
       group.updatedAt = now;
 
       const actId = generateId();
@@ -470,12 +549,10 @@ export function useSplitUpFirestore() {
       const expName = expSnap.data()?.description || 'an expense';
       await deleteDoc(expRef);
 
-      // Recalculate total
-      const allExps = await getDocs(collection(db, 'splitup_groups', groupId, 'expenses'));
-      const total = allExps.docs.reduce((s, d) => s + (d.data().amount || 0), 0);
-      const groupRef = doc(db, 'splitup_groups', groupId);
-      await updateDoc(groupRef, { totalExpense: total, updatedAt: serverTimestamp() });
+      // Recalculate group stats
+      await recalculateGroupStats(groupId);
 
+      const groupRef = doc(db, 'splitup_groups', groupId);
       const groupSnap = await getDoc(groupRef);
       const actRef = doc(collection(db, 'splitup_groups', groupId, 'activity'));
       await setDoc(actRef, {
@@ -515,6 +592,7 @@ export function useSplitUpFirestore() {
       if (!group) throw new Error('Group not found');
 
       group.settlements[settlementId] = settlement;
+      recalculateGroupStatsDemo(group);
       group.updatedAt = now;
 
       const fromName = group.memberDetails[settlement.from]?.name || 'Someone';
@@ -536,6 +614,9 @@ export function useSplitUpFirestore() {
       const setRef = doc(db, 'splitup_groups', groupId, 'settlements', settlementId);
       await setDoc(setRef, { ...settlement, createdAt: serverTimestamp() });
 
+      // Recalculate group stats
+      await recalculateGroupStats(groupId);
+
       const groupSnap = await getDoc(doc(db, 'splitup_groups', groupId));
       const fromName = groupSnap.data()?.memberDetails?.[settlement.from]?.name || 'Someone';
       const toName = groupSnap.data()?.memberDetails?.[settlement.to]?.name || 'Someone';
@@ -549,8 +630,6 @@ export function useSplitUpFirestore() {
         amount: settlement.amount,
         createdAt: serverTimestamp(),
       });
-
-      await updateDoc(doc(db, 'splitup_groups', groupId), { updatedAt: serverTimestamp() });
     }
 
     return settlementId;
@@ -565,7 +644,12 @@ export function useSplitUpFirestore() {
    * Returns an unsubscribe function.
    */
   const subscribeToGroups = useCallback((callback) => {
-    if (!uid) return () => {};
+    if (!uid) {
+      console.log('[SplitUp debug] subscribeToGroups: No current user UID available.');
+      return () => {};
+    }
+
+    console.log('[SplitUp debug] subscribeToGroups query initialization for uid:', uid, 'isDemoMode:', isDemoMode);
 
     if (isDemoMode) {
       // For demo mode, poll localStorage every 500ms
@@ -585,11 +669,20 @@ export function useSplitUpFirestore() {
         collection(db, 'splitup_groups'),
         where('members', 'array-contains', uid)
       );
+      
       return onSnapshot(q, (snapshot) => {
         const groups = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+        console.log(
+          '[SplitUp debug] subscribeToGroups onSnapshot updated. Result count:',
+          groups.length,
+          'for current user uid:',
+          uid,
+          'groups:',
+          groups.map(g => ({ id: g.id, name: g.name, members: g.members }))
+        );
         callback(groups);
       }, (err) => {
-        console.error('Error subscribing to groups:', err);
+        console.error('[SplitUp debug] Error subscribing to groups:', err);
         callback([]);
       });
     }
@@ -603,6 +696,7 @@ export function useSplitUpFirestore() {
     if (!groupId) return () => {};
 
     const { onExpenses, onSettlements, onActivity, onGroup } = callbacks;
+    console.log('[SplitUp debug] subscribeToGroupDetails initialization for groupId:', groupId, 'isDemoMode:', isDemoMode);
 
     if (isDemoMode) {
       const poll = () => {
@@ -629,7 +723,15 @@ export function useSplitUpFirestore() {
       if (onGroup) {
         unsubs.push(
           onSnapshot(doc(db, 'splitup_groups', groupId), (snap) => {
-            if (snap.exists()) onGroup({ id: snap.id, ...snap.data() });
+            if (snap.exists()) {
+              const groupData = { id: snap.id, ...snap.data() };
+              console.log('[SplitUp debug] subscribeToGroupDetails onGroup update received for:', groupId, 'members:', groupData.members);
+              onGroup(groupData);
+            } else {
+              console.warn('[SplitUp debug] subscribeToGroupDetails onGroup update: doc does not exist for:', groupId);
+            }
+          }, (err) => {
+            console.error('[SplitUp debug] Error subscribing to group doc:', groupId, err);
           })
         );
       }
@@ -638,7 +740,11 @@ export function useSplitUpFirestore() {
       if (onExpenses) {
         unsubs.push(
           onSnapshot(collection(db, 'splitup_groups', groupId, 'expenses'), (snap) => {
-            onExpenses(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+            const expensesList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            console.log('[SplitUp debug] subscribeToGroupDetails onExpenses update received for:', groupId, 'count:', expensesList.length);
+            onExpenses(expensesList);
+          }, (err) => {
+            console.error('[SplitUp debug] Error subscribing to expenses:', groupId, err);
           })
         );
       }
@@ -647,7 +753,11 @@ export function useSplitUpFirestore() {
       if (onSettlements) {
         unsubs.push(
           onSnapshot(collection(db, 'splitup_groups', groupId, 'settlements'), (snap) => {
-            onSettlements(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+            const settlementsList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            console.log('[SplitUp debug] subscribeToGroupDetails onSettlements update received for:', groupId, 'count:', settlementsList.length);
+            onSettlements(settlementsList);
+          }, (err) => {
+            console.error('[SplitUp debug] Error subscribing to settlements:', groupId, err);
           })
         );
       }
@@ -663,7 +773,10 @@ export function useSplitUpFirestore() {
                 const tb = b.createdAt?.toDate?.() || new Date(b.createdAt);
                 return tb - ta;
               });
+            console.log('[SplitUp debug] subscribeToGroupDetails onActivity update received for:', groupId, 'count:', activities.length);
             onActivity(activities);
+          }, (err) => {
+            console.error('[SplitUp debug] Error subscribing to activity:', groupId, err);
           })
         );
       }
@@ -671,6 +784,10 @@ export function useSplitUpFirestore() {
       return () => unsubs.forEach((u) => u());
     }
   }, [isDemoMode]);
+
+  const recalculateGroupStatsCallback = useCallback(async (groupId) => {
+    await recalculateGroupStats(groupId);
+  }, []);
 
   return {
     createGroup,
@@ -684,5 +801,6 @@ export function useSplitUpFirestore() {
     settleBalance,
     subscribeToGroups,
     subscribeToGroupDetails,
+    recalculateGroupStats: recalculateGroupStatsCallback,
   };
 }
