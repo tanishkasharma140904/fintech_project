@@ -17,7 +17,7 @@ import { useAuth } from './AuthContext';
 import { auth, db } from '../firebase';
 import { collection, writeBatch, doc, getDocs } from 'firebase/firestore';
 
-const API_BASE = 'http://localhost:5001';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const AnalyticsContext = createContext(null);
 
