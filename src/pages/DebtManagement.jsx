@@ -188,6 +188,7 @@ export default function DebtManagement() {
   const updateProfile = (k, v) => { setProfile(p => ({ ...p, [k]: v })); if (showResults) setShowResults(false); };
 
   const result = useDebtAnalyzer(debts, profile, extraPayment);
+  const activePlan = result.ready ? result.strategies[activeStrategy] : null;
 
   // Sync to localStorage
   useEffect(() => {
@@ -246,10 +247,9 @@ export default function DebtManagement() {
         priority: result.metrics.dti > 40 ? "high" : "medium",
       });
     }
-  }, [showResults, result.ready, activeStrategy, extraPayment, result.metrics.dti, result.metrics.riskStatus, activePlan?.debtFreeMonth, addNotification]);
+  }, [showResults, result.ready, activeStrategy, extraPayment, result.metrics?.dti, result.metrics?.riskStatus, activePlan?.debtFreeMonth, addNotification]);
 
   const healthScore = analytics?.dashboard_cards?.financial_health?.value;
-  const activePlan = result.ready ? result.strategies[activeStrategy] : null;
 
   return (
     <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg-base)" }}>

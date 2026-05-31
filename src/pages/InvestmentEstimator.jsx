@@ -218,7 +218,7 @@ export default function InvestmentEstimator() {
         });
       }
     }
-  }, [showResults, result.ready, selectedType, result.metrics.feasibilityScore, result.metrics.emi, result.metrics.dti, result.metrics.remainingSavings, result.metrics.feasibilityStatus, addNotification]);
+  }, [showResults, result.ready, selectedType, result.metrics?.feasibilityScore, result.metrics?.emi, result.metrics?.dti, result.metrics?.remainingSavings, result.metrics?.feasibilityStatus, addNotification]);
 
   const healthScore = analytics?.dashboard_cards?.financial_health?.value;
 
